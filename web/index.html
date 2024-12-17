@@ -31,8 +31,30 @@
 
   <title>market_master</title>
   <link rel="manifest" href="manifest.json">
+
+  <!-- Firebase SDK -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-analytics-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 </head>
 <body>
+  <script>
+    const firebaseConfig = {
+      apiKey: "AIzaSyCnp4izw1rwY9pPV-bAak7iyDuQV-Rhzd0",
+      authDomain: "renate-project.firebaseapp.com",
+      projectId: "renate-project",
+      storageBucket: "renate-project.appspot.com",
+      messagingSenderId: "1008606267382",
+      appId: "1:1008606267382:web:fa057a0b9a56f29d2e69d7",
+      measurementId: "G-TW5YJB78TP"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    firebase.analytics();
+  </script>
   <script src="flutter_bootstrap.js" async></script>
 </body>
 </html>
