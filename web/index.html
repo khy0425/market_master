@@ -38,17 +38,29 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
+
+  <!-- crossorigin 속성 추가 -->
+  <meta name="crossorigin" content="anonymous">
+
+  <!-- CORS 정책 메타 태그 수정 -->
+  <meta http-equiv="Content-Security-Policy" content="
+    default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; 
+    img-src * 'self' data: blob: https: http: crossorigin;
+    connect-src * 'self' https: wss: ws:;
+    style-src * 'self' 'unsafe-inline';
+    script-src * 'self' 'unsafe-inline' 'unsafe-eval';
+  ">
 </head>
 <body>
   <script>
     const firebaseConfig = {
-      apiKey: "AIzaSyCnp4izw1rwY9pPV-bAak7iyDuQV-Rhzd0",
-      authDomain: "renate-project.firebaseapp.com",
-      projectId: "renate-project",
-      storageBucket: "renate-project.appspot.com",
-      messagingSenderId: "1008606267382",
-      appId: "1:1008606267382:web:fa057a0b9a56f29d2e69d7",
-      measurementId: "G-TW5YJB78TP"
+      apiKey: "${FIREBASE_API_KEY}",
+      authDomain: "${FIREBASE_AUTH_DOMAIN}",
+      projectId: "${FIREBASE_PROJECT_ID}",
+      storageBucket: "${FIREBASE_STORAGE_BUCKET}",
+      messagingSenderId: "${FIREBASE_MESSAGING_SENDER_ID}",
+      appId: "${FIREBASE_APP_ID}",
+      measurementId: "${FIREBASE_MEASUREMENT_ID}"
     };
 
     // Initialize Firebase

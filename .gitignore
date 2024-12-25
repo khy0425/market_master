@@ -102,3 +102,9 @@ GoogleService-Info.plist
 **/ios/Flutter/flutter_assets/
 **/ios/ServiceDefinitions.json
 **/ios/Runner/GeneratedPluginRegistrant.*
+
+# Firebase 설정
+lib/config/firebase_config.dart
+.env
+*.env
+firebase_options.dart
