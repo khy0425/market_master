@@ -40,8 +40,13 @@
   <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-storage-compat.js"></script>
 
   <!-- crossorigin 속성 추가 -->
-  <meta name="crossorigin" content="anonymous">
+  <meta name="crossorigin" content="use-credentials">
 
+  <!-- 이미지 로딩 관련 설정 -->
+  <meta http-equiv="Cache-Control" content="no-cache, must-revalidate">
+  <meta http-equiv="Pragma" content="no-cache">
+  <meta http-equiv="Expires" content="0">
+  
   <!-- CORS 정책 메타 태그 수정 -->
   <meta http-equiv="Content-Security-Policy" content="
     default-src * 'self' 'unsafe-inline' 'unsafe-eval' data: blob:; 
@@ -49,6 +54,7 @@
     connect-src * 'self' https: wss: ws:;
     style-src * 'self' 'unsafe-inline';
     script-src * 'self' 'unsafe-inline' 'unsafe-eval';
+    worker-src * 'self' blob:;
   ">
 </head>
 <body>

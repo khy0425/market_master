@@ -52,7 +52,7 @@ admins/
     deactivatedBy: string?
 ```
 
-## 4. 주요 ���능
+## 4. 주요 기능
 
 ### 인증
 - 이메일/비밀번호 로그인

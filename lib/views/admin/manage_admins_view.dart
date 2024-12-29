@@ -334,7 +334,7 @@ class _ManageAdminsViewState extends ConsumerState<ManageAdminsView> {
                   if (mounted) {
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('관리자 정보가 수정되었습니��')),
+                      const SnackBar(content: Text('관리자 정보가 수정되었습니다')),
                     );
                   }
                 } catch (e) {

@@ -5,8 +5,29 @@ rules_version = '2';
 //    /databases/(default)/documents/users/$(request.auth.uid)).data.isAdmin;
 service firebase.storage {
   match /b/{bucket}/o {
+    // 인증된 사용자만 접근 가능
     match /{allPaths=**} {
-      allow read, write: if false;
+      allow read: if true;  // 모든 사용자가 읽기 가능
+      allow write: if request.auth != null  // 인증된 사용자만 쓰기 가능
+        && request.resource.size < 10 * 1024 * 1024  // 10MB로 제한 증가
+        && (
+          request.resource.contentType == 'image/jpeg' ||
+          request.resource.contentType == 'image/png' ||
+          request.resource.contentType == 'image/gif'
+        )
+    }
+    
+    // 상품 이미지 전용 규칙
+    match /products/{type}/{fileName} {
+      allow read: if true;
+      allow write: if request.auth != null
+        && request.resource.size < 10 * 1024 * 1024
+        && (
+          request.resource.contentType == 'image/jpeg' ||
+          request.resource.contentType == 'image/png' ||
+          request.resource.contentType == 'image/gif'
+        )
+        && (type == 'main' || type == 'detail');
     }
   }
 }

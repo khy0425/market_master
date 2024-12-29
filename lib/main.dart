@@ -8,6 +8,7 @@ import 'package:firebase_auth/firebase_auth.dart';
 import '../providers/auth_provider.dart';
 import 'views/auth/login_view.dart';
 import 'views/admin/manage_admins_view.dart';
+import 'views/product/product_list_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -176,7 +177,13 @@ class AdminDashboard extends ConsumerWidget {
                     leading: const Icon(Icons.inventory),
                     title: const Text('상품 관리'),
                     onTap: () {
-                      // TODO: 상품 관리 화면으로 이동
+                      Navigator.pop(context);
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (context) => const ProductListView(),
+                        ),
+                      );
                     },
                   );
                 }
@@ -202,7 +209,7 @@ class AdminDashboard extends ConsumerWidget {
                     leading: const Icon(Icons.people),
                     title: const Text('고객 관리'),
                     onTap: () {
-                      // TODO: 고객 관리 화면으��� 이동
+                      // TODO: 고객 관리 화면으로 이동
                     },
                   );
                 }

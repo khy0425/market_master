@@ -32,12 +32,30 @@ class _LoginViewState extends ConsumerState<LoginView> {
           );
     } catch (e) {
       setState(() {
-        _errorMessage = e.toString();
+        _errorMessage = _getErrorMessage(e.toString());
       });
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
       }
+    }
+  }
+
+  String _getErrorMessage(String error) {
+    if (error.contains('invalid-credential')) {
+      return '아이디 또는 비밀번호가 올바르지 않습니다.';
+    } else if (error.contains('user-not-found')) {
+      return '등록되지 않은 이메일입니다.';
+    } else if (error.contains('wrong-password')) {
+      return '비밀번호가 올바르지 않습니다.';
+    } else if (error.contains('user-disabled')) {
+      return '비활성화된 계정입니다. 관리자에게 문의하세요.';
+    } else if (error.contains('too-many-requests')) {
+      return '너무 많은 로그인 시도가 있었습니다. 잠시 후 다시 시도해주세요.';
+    } else if (error.contains('network-request-failed')) {
+      return '네트워크 연결을 확인해주세요.';
+    } else {
+      return '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
     }
   }
 
