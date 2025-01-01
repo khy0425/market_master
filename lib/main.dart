@@ -9,6 +9,7 @@ import '../providers/auth_provider.dart';
 import 'views/auth/login_view.dart';
 import 'views/admin/manage_admins_view.dart';
 import 'views/product/product_list_view.dart';
+import 'views/order/order_list_view.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -197,7 +198,13 @@ class AdminDashboard extends ConsumerWidget {
               leading: const Icon(Icons.shopping_cart),
               title: const Text('주문 관리'),
               onTap: () {
-                // TODO: 주문 관리 화면으로 이동
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (context) => const OrderListView(),
+                  ),
+                );
               },
             ),
             // 고객 관리 (SUPER_ADMIN, ADMIN)
