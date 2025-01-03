@@ -8,9 +8,14 @@ import 'package:transparent_image/transparent_image.dart';
 import 'dart:developer' as developer;
 
 import '../../models/product.dart';
+import '../../models/product_modification.dart';
 import '../../views/product/product_edit_view.dart';
 import '../../utils/format_utils.dart';
 import '../../widgets/network_image_with_retry.dart';
+import '../../services/storage_service.dart';
+import '../../services/product_service.dart';
+
+final productServiceProvider = Provider((ref) => ProductService());
 
 class ProductDetailView extends ConsumerStatefulWidget {
   final Product product;
@@ -43,6 +48,11 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                 Navigator.of(context).pop(true);
               }
             },
+          ),
+          IconButton(
+            icon: const Icon(Icons.delete),
+            tooltip: '상품 삭제',
+            onPressed: () => _showDeleteConfirmDialog(context),
           ),
         ],
       ),
@@ -80,20 +90,92 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               ],
             ),
 
-            // 이미지 섹션
+            // 수정 이력 섹션을 재고 정보 다음으로 이동
+            _buildSection(
+              '수정 이력',
+              [
+                StreamBuilder<List<ProductModification>>(
+                  stream: ref.read(productServiceProvider).getProductModifications(widget.product.id),
+                  builder: (context, snapshot) {
+                    if (snapshot.hasError) {
+                      return Text('오류 발생: ${snapshot.error}');
+                    }
+
+                    if (!snapshot.hasData) {
+                      return const Center(child: CircularProgressIndicator());
+                    }
+
+                    final modifications = snapshot.data!;
+                    if (modifications.isEmpty) {
+                      return const Text('수정 이력이 없습니다.');
+                    }
+
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: modifications.length,
+                      itemBuilder: (context, index) {
+                        final modification = modifications[index];
+                        return Card(
+                          child: ListTile(
+                            title: Text(modification.modificationType),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('수정자: ${modification.modifiedBy}'),
+                                Text('수정일시: ${FormatUtils.formatDateTime(modification.modifiedAt)}'),
+                                if (modification.comment != null)
+                                  Text('코멘트: ${modification.comment}'),
+                                const SizedBox(height: 8),
+                                ...modification.changes.entries.map((entry) {
+                                  final fieldName = entry.key;
+                                  final change = entry.value;
+                                  return Text(
+                                    '$fieldName: ${change['old']} → ${change['new']}',
+                                    style: const TextStyle(fontSize: 12),
+                                  );
+                                }),
+                              ],
+                            ),
+                          ),
+                        );
+                      },
+                    );
+                  },
+                ),
+              ],
+            ),
+
+            // 이미지 섹션 - 중앙 정렬 적용
             _buildSection(
               '상품 이미지',
               [
                 Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const Text('대표 이미지:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    _buildImage(widget.product.productImageUrl),
+                    // 대표 이미지
+                    const Text('대표 이미지', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
-                    const Text('상세 이미지:', style: TextStyle(fontWeight: FontWeight.bold)),
-                    const SizedBox(height: 8),
-                    _buildImage(widget.product.productDetailImage),
+                    Center(
+                      child: SizedBox(
+                        width: 400,  // 이미지 최대 너비 지정
+                        child: AspectRatio(
+                          aspectRatio: 1,  // 1:1 비율 유지
+                          child: _buildImage(widget.product.productImageUrl),
+                        ),
+                      ),
+                    ),
+                    
+                    const SizedBox(height: 32),
+                    
+                    // 상세 이미지
+                    const Text('상세 이미지', style: TextStyle(fontWeight: FontWeight.bold)),
+                    const SizedBox(height: 16),
+                    Center(
+                      child: SizedBox(
+                        width: 600,  // 상세 이미지는 더 크게 표시
+                        child: _buildImage(widget.product.productDetailImage),
+                      ),
+                    ),
                   ],
                 ),
               ],
@@ -175,5 +257,72 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
               ),
             ),
     );
+  }
+
+  Future<void> _showDeleteConfirmDialog(BuildContext context) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('상품 삭제'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('정말 "${widget.product.name}" 상품을 삭제하시겠습니까?'),
+            const SizedBox(height: 16),
+            const Text(
+              '* 삭제된 상품은 복구할 수 없습니다.',
+              style: TextStyle(
+                color: Colors.red,
+                fontSize: 12,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('삭제'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      try {
+        // 상품 이미지 삭제
+        final storageService = StorageService();
+        if (widget.product.productImageUrl.isNotEmpty) {
+          await storageService.deleteImage(widget.product.productImageUrl);
+        }
+        if (widget.product.productDetailImage.isNotEmpty) {
+          await storageService.deleteImage(widget.product.productDetailImage);
+        }
+
+        // 상품 데이터 삭제
+        await ref.read(productServiceProvider).deleteProduct(widget.product.id);
+
+        if (mounted) {
+          Navigator.of(context).pop(true); // 상품 목록으로 돌아가기
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('상품이 삭제되었습니다')),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('삭제 실패: $e')),
+          );
+        }
+      }
+    }
   }
 } 
