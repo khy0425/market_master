@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:market_master/views/product/product_list_view.dart';
 
 import '../../models/product.dart';
+import '../../providers/auth_provider.dart';
 
 class ProductEditDialog extends ConsumerStatefulWidget {
   final Product product;
@@ -125,25 +126,24 @@ class _ProductEditDialogState extends ConsumerState<ProductEditDialog> {
   Future<void> _updateProduct() async {
     if (_formKey.currentState!.validate()) {
       try {
-        final originalPrice = int.parse(_originalPriceController.text);
-        final sellingPrice = int.parse(_sellingPriceController.text);
-        final discountRate = ((originalPrice - sellingPrice) / originalPrice * 100).round();
+        final adminUser = ref.read(authStateProvider).value;
+        if (adminUser == null) return;
 
-        final updatedData = {
-          'productName': _nameController.text,
-          'productDetails': _descriptionController.text,
-          'originalPrice': originalPrice,
-          'price': sellingPrice,
-          'discountRate': discountRate,
-          'stockQuantity': int.parse(_stockQuantityController.text),
-          'isActive': _isActive,
-          'updatedAt': DateTime.now(),
-        };
-
-        await ref.read(productServiceProvider).updateProduct(
-          widget.product.id,
-          updatedData,
+        final updatedProduct = widget.product.copyWith(
+          name: _nameController.text,
+          description: _descriptionController.text,
+          originalPrice: int.parse(_originalPriceController.text),
+          sellingPrice: int.parse(_sellingPriceController.text),
+          discountRate: ((int.parse(_originalPriceController.text) - 
+                         int.parse(_sellingPriceController.text)) / 
+                         int.parse(_originalPriceController.text) * 100).round(),
+          stockQuantity: int.parse(_stockQuantityController.text),
+          isActive: _isActive,
+          updatedAt: DateTime.now(),
+          updatedBy: adminUser.email ?? '',
         );
+
+        await ref.read(productServiceProvider).updateProduct(updatedProduct);
 
         if (mounted) {
           Navigator.pop(context);

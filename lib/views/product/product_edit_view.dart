@@ -117,7 +117,7 @@ class _ProductEditViewState extends ConsumerState<ProductEditView> {
         title: const Text('상품 수정'),
         actions: [
           TextButton(
-            onPressed: _isLoading ? null : _saveChanges,
+            onPressed: _saveChanges,
             child: const Text('저장'),
           ),
         ],
@@ -330,16 +330,16 @@ class _ProductEditViewState extends ConsumerState<ProductEditView> {
         description: _descriptionController.text,
         originalPrice: int.parse(_originalPriceController.text),
         sellingPrice: int.parse(_sellingPriceController.text),
+        discountRate: ((int.parse(_originalPriceController.text) - 
+                       int.parse(_sellingPriceController.text)) / 
+                       int.parse(_originalPriceController.text) * 100).round(),
         stockQuantity: int.parse(_stockQuantityController.text),
         productImageUrl: _mainImageUrl ?? widget.product.productImageUrl,
         productDetailImage: _detailImageUrl ?? widget.product.productDetailImage,
         updatedAt: DateTime.now(),
       );
 
-      await ref.read(productServiceProvider).updateProduct(
-        widget.product.id,
-        updatedProduct.toMap(),
-      );
+      await ref.read(productServiceProvider).updateProduct(updatedProduct);
 
       if (mounted) {
         Navigator.of(context).pop(true);

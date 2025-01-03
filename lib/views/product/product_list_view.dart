@@ -8,6 +8,7 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:transparent_image/transparent_image.dart';
 import '../../utils/format_utils.dart';
+import 'package:market_master/views/product/add_product_view.dart';
 
 // 상품 서비스 프로바이더
 final productServiceProvider = Provider((ref) => ProductService());
@@ -37,14 +38,14 @@ class ProductListView extends ConsumerWidget {
         title: const Text('상품 관리'),
         actions: [
           IconButton(
-            icon: const Icon(Icons.file_upload),
-            tooltip: '엑셀 파일로 상품 일괄 등록',
-            onPressed: () => _showExcelImportDialog(context, ref),
-          ),
-          IconButton(
             icon: const Icon(Icons.add),
             tooltip: '새 상품 등록',
-            onPressed: () => _showAddProductDialog(context, ref),
+            onPressed: () => Navigator.push(
+              context,
+              MaterialPageRoute(
+                builder: (context) => const AddProductView(),
+              ),
+            ),
           ),
         ],
       ),
@@ -274,149 +275,6 @@ class ProductListView extends ConsumerWidget {
     );
   }
 
-  Future<void> _showAddProductDialog(BuildContext context, WidgetRef ref) async {
-    final formKey = GlobalKey<FormState>();
-    final productCodeController = TextEditingController();
-    final nameController = TextEditingController();
-    final descriptionController = TextEditingController();
-    final originalPriceController = TextEditingController();
-    final sellingPriceController = TextEditingController();
-    final stockQuantityController = TextEditingController();
-    String mainCategory = '';
-    String subCategory = '';
-
-    await showDialog(
-      context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('새 상품 등록'),
-        content: SingleChildScrollView(
-          child: Form(
-            key: formKey,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextFormField(
-                  controller: productCodeController,
-                  decoration: const InputDecoration(
-                    labelText: '상품 코드',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? '상품 코드를 입력하세요' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: nameController,
-                  decoration: const InputDecoration(
-                    labelText: '상품명',
-                    border: OutlineInputBorder(),
-                  ),
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? '상품명을 입력하세요' : null,
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: descriptionController,
-                  decoration: const InputDecoration(
-                    labelText: '상품 설명',
-                    border: OutlineInputBorder(),
-                  ),
-                  maxLines: 3,
-                ),
-                const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: originalPriceController,
-                        decoration: const InputDecoration(
-                          labelText: '정가',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) =>
-                            value?.isEmpty ?? true ? '정가를 입력하세요' : null,
-                      ),
-                    ),
-                    const SizedBox(width: 16),
-                    Expanded(
-                      child: TextFormField(
-                        controller: sellingPriceController,
-                        decoration: const InputDecoration(
-                          labelText: '판매가',
-                          border: OutlineInputBorder(),
-                        ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) =>
-                            value?.isEmpty ?? true ? '판매가를 입력하세요' : null,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 16),
-                TextFormField(
-                  controller: stockQuantityController,
-                  decoration: const InputDecoration(
-                    labelText: '재고수량',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                  validator: (value) =>
-                      value?.isEmpty ?? true ? '재고수량을 입력하세요' : null,
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(context).pop(),
-            child: const Text('취소'),
-          ),
-          ElevatedButton(
-            onPressed: () async {
-              if (formKey.currentState!.validate()) {
-                try {
-                  final product = Product(
-                    id: '',
-                    productCode: productCodeController.text,
-                    name: nameController.text,
-                    description: descriptionController.text,
-                    originalPrice: int.parse(originalPriceController.text),
-                    sellingPrice: int.parse(sellingPriceController.text),
-                    discountRate: 0, // 계산 필요
-                    mainCategory: mainCategory,
-                    subCategory: subCategory,
-                    productImageUrl: '',
-                    productDetailImage: '',
-                    stockQuantity: int.parse(stockQuantityController.text),
-                    createdAt: DateTime.now(),
-                  );
-
-                  await ref
-                      .read(productServiceProvider)
-                      .addProduct(product.toMap());
-
-                  if (context.mounted) {
-                    Navigator.of(context).pop();
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      const SnackBar(content: Text('상품이 등록되었습니다')),
-                    );
-                  }
-                } catch (e) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('오류 발생: $e')),
-                  );
-                }
-              }
-            },
-            child: const Text('등록'),
-          ),
-        ],
-      ),
-    );
-  }
-
   // 상품 수정 다이얼로그
   Future<void> _showEditProductDialog(BuildContext context, WidgetRef ref, Product product) async {
     final formKey = GlobalKey<FormState>();
@@ -535,7 +393,7 @@ class ProductListView extends ConsumerWidget {
 
                   await ref
                       .read(productServiceProvider)
-                      .updateProduct(product.id, updatedProduct.toMap());
+                      .updateProduct(updatedProduct);
 
                   if (context.mounted) {
                     Navigator.of(context).pop();

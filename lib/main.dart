@@ -11,6 +11,9 @@ import 'views/admin/manage_admins_view.dart';
 import 'views/product/product_list_view.dart';
 import 'views/order/order_list_view.dart';
 
+/// 마켓마스터 관리자 앱의 메인 엔트리 포인트
+/// 
+/// Firebase 초기화 및 앱 실행을 담당합니다.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
   
@@ -26,6 +29,9 @@ void main() async {
   runApp(const ProviderScope(child: MyApp()));
 }
 
+/// 앱의 루트 위젯
+/// 
+/// 테마 설정 및 라우팅 설정을 담당합니다.
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
 

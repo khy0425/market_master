@@ -2,10 +2,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/order.dart';
 import 'dart:developer' as developer;
 
+/// 주문 관련 서비스를 제공하는 클래스
+/// 
+/// Firebase Firestore와 통신하여 주문 데이터를 관리합니다.
 class OrderService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
 
-  // 주문 목록 스트림
+  /// 모든 주문 목록을 스트림으로 제공
+  /// 
+  /// 주문일시 기준 내림차순으로 정렬됩니다.
   Stream<List<ProductOrder>> getOrders() {
     return _firestore
         .collection('users')
@@ -60,24 +65,30 @@ class OrderService {
         });
   }
 
-  // 주문 상태 업데이트
+  /// 주문 상태를 업데이트
   Future<void> updateOrderStatus(
-    String userId, 
-    String orderNo, 
-    String newStatus, 
+    ProductOrder order,
+    OrderStatus newStatus,
     String adminId,
     String adminEmail,
     {String? note}
   ) async {
     try {
-      final userDoc = await _firestore.collection('users').doc(userId).get();
+      final orderInfo = OrderInfo.fromProductOrder(
+        order, 
+        adminId, 
+        adminEmail,
+        note: note
+      );
+
+      final userDoc = await _firestore.collection('users').doc(orderInfo.userId).get();
       List<dynamic> orders = userDoc.data()?['productOrders'] ?? [];
-      int orderIndex = orders.indexWhere((order) => order['orderNo'] == orderNo);
+      int orderIndex = orders.indexWhere((o) => o['orderNo'] == orderInfo.orderNo);
       
       if (orderIndex == -1) throw '주문을 찾을 수 없습니다.';
 
       // 상태 업데이트
-      orders[orderIndex]['deliveryStatus'] = newStatus;
+      orders[orderIndex]['deliveryStatus'] = newStatus.text;
 
       // 이력 추가
       if (orders[orderIndex]['history'] == null) {
@@ -85,22 +96,63 @@ class OrderService {
       }
       
       orders[orderIndex]['history'].add({
-        'status': newStatus,
+        'status': newStatus.text,
         'timestamp': DateTime.now(),
-        'adminId': adminId,
-        'adminEmail': adminEmail,
-        'note': note,
+        'adminId': orderInfo.adminId,
+        'adminEmail': orderInfo.adminEmail,
+        'note': orderInfo.note,
       });
 
-      await _firestore.collection('users').doc(userId).update({
+      await _firestore.collection('users').doc(orderInfo.userId).update({
         'productOrders': orders,
       });
     } catch (e) {
-      developer.log(
-        'Error updating order status',
-        error: e,
-        name: 'OrderService',
-      );
+      developer.log('Error updating order status', error: e, name: 'OrderService');
+      rethrow;
+    }
+  }
+
+  /// 결제 상태 업데이트
+  Future<void> updatePaymentStatus(OrderInfo order, PaymentStatus newStatus) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(order.userId).get();
+      List<dynamic> orders = userDoc.data()?['productOrders'] ?? [];
+      int orderIndex = orders.indexWhere((o) => o['orderNo'] == order.orderNo);
+      
+      if (orderIndex == -1) throw '주문을 찾을 수 없습니다.';
+
+      // 결제 상태 업데이트
+      orders[orderIndex]['payment']['status'] = newStatus.text;
+
+      await _firestore.collection('users').doc(order.userId).update({
+        'productOrders': orders,
+      });
+    } catch (e) {
+      developer.log('Error updating payment status', error: e, name: 'OrderService');
+      rethrow;
+    }
+  }
+
+  /// 환불 처리
+  Future<void> processRefund(OrderInfo order, RefundDetails refundDetails) async {
+    try {
+      final userDoc = await _firestore.collection('users').doc(order.userId).get();
+      List<dynamic> orders = userDoc.data()?['productOrders'] ?? [];
+      int orderIndex = orders.indexWhere((o) => o['orderNo'] == order.orderNo);
+      
+      if (orderIndex == -1) throw '주문을 찾을 수 없습니다.';
+
+      // 환불 정보 업데이트
+      orders[orderIndex]['payment']['status'] = PaymentStatus.refunded.text;
+      orders[orderIndex]['payment']['refundAmount'] = refundDetails.amount;
+      orders[orderIndex]['payment']['refundDate'] = DateTime.now();
+      orders[orderIndex]['payment']['refundReason'] = refundDetails.reason;
+
+      await _firestore.collection('users').doc(order.userId).update({
+        'productOrders': orders,
+      });
+    } catch (e) {
+      developer.log('Error processing refund', error: e, name: 'OrderService');
       rethrow;
     }
   }
@@ -120,19 +172,28 @@ class OrderService {
     });
   }
 
-  // 운송장 번호 업데이트
+  /// 운송장 번호 업데이트
   Future<void> updateTrackingNumber(
-    String userId, 
-    String orderNo, 
+    ProductOrder order,
     String trackingNumber,
     String adminId,
     String adminEmail,
   ) async {
     try {
+      // 운송장 번호 업데이트
+      final userDoc = await _firestore.collection('users').doc(order.userId).get();
+      List<dynamic> orders = userDoc.data()?['productOrders'] ?? [];
+      int orderIndex = orders.indexWhere((o) => o['orderNo'] == order.orderNo);
+      
+      if (orderIndex == -1) throw '주문을 찾을 수 없습니다.';
+
+      // 운송장 번호 저장
+      orders[orderIndex]['trackingNumber'] = trackingNumber;
+
+      // 배송 상태 변경
       await updateOrderStatus(
-        userId, 
-        orderNo, 
-        '배송중', 
+        order,
+        OrderStatus.shipping,
         adminId,
         adminEmail,
         note: '운송장 번호: $trackingNumber',
@@ -146,4 +207,19 @@ class OrderService {
       rethrow;
     }
   }
+}
+
+/// 환불 처리에 필요한 정보를 담는 클래스
+class RefundDetails {
+  final int amount;
+  final String reason;
+  final String adminId;
+  final String adminEmail;
+
+  RefundDetails({
+    required this.amount,
+    required this.reason,
+    required this.adminId,
+    required this.adminEmail,
+  });
 } 

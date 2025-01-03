@@ -1,22 +1,54 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 
+/// 상품 정보를 나타내는 클래스
 class Product {
+  /// 상품 번호 (고유 식별자)
   final String id;
-  final String productCode;    // productNo를 string으로 변환하여 사용
-  final String name;          // productName
-  final String description;   // productDetails
-  final int originalPrice;    // originalPrice
-  final int sellingPrice;    // price
-  final int discountRate;    // discountRate
-  final String mainCategory; // mainCategory
-  final String subCategory;  // subCategory
-  final String productImageUrl;     // 대표 이미지
-  final String productDetailImage;  // 상세 이미지
-  final int stockQuantity;   // 재고수량 (신규 추가 필드)
-  final bool isActive;       // 판매 상태
-  final DateTime createdAt;  // 등록일
-  final DateTime? updatedAt; // 수정일
-  final String? updatedBy;   // 수정자
+  
+  /// 상품 코드 (외부 노출용)
+  final String productCode;
+  
+  /// 상품명
+  final String name;
+  
+  /// 상품 설명
+  final String description;
+  
+  /// 정가
+  final int originalPrice;
+  
+  /// 판매가
+  final int sellingPrice;
+  
+  /// 할인율 (%)
+  final int discountRate;
+  
+  /// 메인 카테고리
+  final String mainCategory;
+  
+  /// 서브 카테고리
+  final String subCategory;
+  
+  /// 대표 이미지 URL
+  final String productImageUrl;
+  
+  /// 상세 이미지 URL
+  final String productDetailImage;
+  
+  /// 재고 수량
+  final int stockQuantity;
+  
+  /// 판매 상태 (true: 판매중, false: 판매중지)
+  final bool isActive;
+  
+  /// 등록일시
+  final DateTime createdAt;
+  
+  /// 수정일시
+  final DateTime? updatedAt;
+  
+  /// 수정자 ID
+  final String? updatedBy;
 
   Product({
     required this.id,

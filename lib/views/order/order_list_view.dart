@@ -5,10 +5,13 @@ import '../../services/order_service.dart';
 import '../../utils/format_utils.dart';
 import '../../providers/auth_provider.dart';
 
+/// 주문 목록을 관리하는 Provider
 final orderServiceProvider = Provider((ref) => OrderService());
 
+/// 주문 검색어를 관리하는 Provider
 final searchQueryProvider = StateProvider<String>((ref) => '');
 
+/// 필터링된 주문 목록을 제공하는 Provider
 final filteredOrdersProvider = StreamProvider<List<ProductOrder>>((ref) {
   final query = ref.watch(searchQueryProvider);
   if (query.isEmpty) {
@@ -18,6 +21,9 @@ final filteredOrdersProvider = StreamProvider<List<ProductOrder>>((ref) {
   }
 });
 
+/// 주문 목록 화면 위젯
+/// 
+/// 주문 목록을 표시하고 주문 상태 변경, 검색 등의 기능을 제공합니다.
 class OrderListView extends ConsumerWidget {
   const OrderListView({super.key});
 
@@ -85,6 +91,11 @@ class OrderListView extends ConsumerWidget {
     );
   }
 
+  /// 주문 카드 위젯을 생성
+  /// 
+  /// [order]: 표시할 주문 정보
+  /// [context]: 빌드 컨텍스트
+  /// [ref]: Provider 참조
   Widget _buildOrderCard(BuildContext context, WidgetRef ref, ProductOrder order) {
     return Card(
       margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -108,7 +119,7 @@ class OrderListView extends ConsumerWidget {
           children: [
             Text('주문자: ${order.buyerName} (${order.buyerEmail})'),
             Text('주문일시: ${_formatDateTime(order.orderDate)}'),
-            Text('결제금액: ${FormatUtils.formatPrice(order.paymentAmount)}'),
+            Text('결제금액: ${FormatUtils.formatPrice(order.totalAmount)}'),
           ],
         ),
         children: [
@@ -240,18 +251,23 @@ class OrderListView extends ConsumerWidget {
            '${dateTime.hour.toString().padLeft(2, '0')}:${dateTime.minute.toString().padLeft(2, '0')}';
   }
 
+  /// 주문 확인 처리
+  /// 
+  /// [order]: 처리할 주문
+  /// [context]: 다이얼로그 표시를 위한 컨텍스트
+  /// [ref]: Provider 참조
   Future<void> _confirmOrder(BuildContext context, WidgetRef ref, ProductOrder order) async {
     final adminUser = ref.read(authStateProvider).value;
     if (adminUser == null) return;
 
     try {
       await ref.read(orderServiceProvider).updateOrderStatus(
-        order.userId,
-        order.orderNo,
-        '주문확인',
+        order,
+        OrderStatus.confirmed,
         adminUser.uid,
-        adminUser.email,
+        adminUser.email ?? '',
       );
+      
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('주문이 확인되었습니다')),
@@ -272,11 +288,10 @@ class OrderListView extends ConsumerWidget {
 
     try {
       await ref.read(orderServiceProvider).updateOrderStatus(
-        order.userId,
-        order.orderNo,
-        '상품준비중',
+        order,
+        OrderStatus.preparing,
         adminUser.uid,
-        adminUser.email,
+        adminUser.email ?? '',
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -328,11 +343,10 @@ class OrderListView extends ConsumerWidget {
               if (formKey.currentState!.validate()) {
                 try {
                   await ref.read(orderServiceProvider).updateTrackingNumber(
-                    order.userId,
-                    order.orderNo,
+                    order,
                     controller.text,
                     adminUser.uid,
-                    adminUser.email,
+                    adminUser.email ?? '',
                   );
                   if (context.mounted) {
                     Navigator.pop(context);
@@ -366,11 +380,10 @@ class OrderListView extends ConsumerWidget {
 
     try {
       await ref.read(orderServiceProvider).updateOrderStatus(
-        order.userId,
-        order.orderNo,
-        '배송완료',
+        order,
+        OrderStatus.delivered,
         adminUser.uid,
-        adminUser.email,
+        adminUser.email ?? '',
       );
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -429,11 +442,10 @@ class OrderListView extends ConsumerWidget {
               if (formKey.currentState!.validate()) {
                 try {
                   await ref.read(orderServiceProvider).updateOrderStatus(
-                    order.userId,
-                    order.orderNo,
-                    '취소/반품',
+                    order,
+                    OrderStatus.cancelled,
                     adminUser.uid,
-                    adminUser.email,
+                    adminUser.email ?? '',
                     note: controller.text,
                   );
                   if (context.mounted) {
@@ -455,6 +467,101 @@ class OrderListView extends ConsumerWidget {
               backgroundColor: Colors.red,
             ),
             child: const Text('취소'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showRefundDialog(
+    BuildContext context,
+    WidgetRef ref,
+    ProductOrder order,
+  ) async {
+    final amountController = TextEditingController();
+    final reasonController = TextEditingController();
+    final formKey = GlobalKey<FormState>();
+    final adminUser = ref.read(authStateProvider).value;
+    if (adminUser == null) return;
+
+    return showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('환불 처리'),
+        content: Form(
+          key: formKey,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              TextFormField(
+                controller: amountController,
+                decoration: const InputDecoration(
+                  labelText: '환불 금액',
+                  border: OutlineInputBorder(),
+                ),
+                keyboardType: TextInputType.number,
+                validator: (value) =>
+                    value?.isEmpty ?? true ? '환불 금액을 입력하세요' : null,
+              ),
+              const SizedBox(height: 16),
+              TextFormField(
+                controller: reasonController,
+                decoration: const InputDecoration(
+                  labelText: '환불 사유',
+                  border: OutlineInputBorder(),
+                ),
+                validator: (value) =>
+                    value?.isEmpty ?? true ? '환불 사유를 입력하세요' : null,
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('취소'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              if (formKey.currentState!.validate()) {
+                try {
+                  final refundDetails = RefundDetails(
+                    amount: int.parse(amountController.text),
+                    reason: reasonController.text,
+                    adminId: adminUser.uid,
+                    adminEmail: adminUser.email ?? '',
+                  );
+
+                  final orderInfo = OrderInfo.fromProductOrder(
+                    order,
+                    adminUser.uid,
+                    adminUser.email ?? '',
+                  );
+
+                  await ref.read(orderServiceProvider).processRefund(
+                    orderInfo,
+                    refundDetails,
+                  );
+
+                  if (context.mounted) {
+                    Navigator.pop(context);
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('환불이 처리되었습니다')),
+                    );
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('오류가 발생했습니다: $e')),
+                    );
+                  }
+                }
+              }
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.red,
+            ),
+            child: const Text('환불'),
           ),
         ],
       ),
