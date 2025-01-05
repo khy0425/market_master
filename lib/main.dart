@@ -10,6 +10,7 @@ import 'views/auth/login_view.dart';
 import 'views/admin/manage_admins_view.dart';
 import 'views/product/product_list_view.dart';
 import 'views/order/order_list_view.dart';
+import 'views/customer/customer_list_view.dart';
 
 /// 마켓마스터 관리자 앱의 메인 엔트리 포인트
 /// 
@@ -222,7 +223,14 @@ class AdminDashboard extends ConsumerWidget {
                     leading: const Icon(Icons.people),
                     title: const Text('고객 관리'),
                     onTap: () {
-                      // TODO: 고객 관리 화면으로 이동
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (context) => const CustomerListView(),
+                        ),
+                      );
+                      if (Scaffold.of(context).isDrawerOpen) {
+                        Navigator.of(context).pop();
+                      }
                     },
                   );
                 }

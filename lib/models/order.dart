@@ -62,7 +62,7 @@ enum PaymentMethodType {
 enum PaymentStatus {
   pending('결제대기'),
   completed('결제완료'),
-  cancelled('결제취소'),
+  cancelled('취소/반품'),
   refunded('환불완료'),
   failed('결제실패');
 
@@ -75,7 +75,7 @@ enum PaymentStatus {
         return PaymentStatus.pending;
       case '결제완료':
         return PaymentStatus.completed;
-      case '결제취소':
+      case '취소/반품':
         return PaymentStatus.cancelled;
       case '환불완료':
         return PaymentStatus.refunded;

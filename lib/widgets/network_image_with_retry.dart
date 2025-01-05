@@ -24,7 +24,7 @@ class NetworkImageWithRetry extends StatelessWidget {
       width: width,
       height: height,
       fit: fit ?? BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) {
+      loadingBuilder: (context, child, loadingProgress) { 
         if (loadingProgress == null) return child;
         return Center(
           child: CircularProgressIndicator(
