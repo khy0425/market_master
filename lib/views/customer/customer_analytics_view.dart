@@ -34,6 +34,8 @@ class _CustomerAnalyticsViewState extends ConsumerState<CustomerAnalyticsView> {
           .getCustomers()
           .first;
       
+      final settings = await ref.read(tierSettingsProvider.future);
+      
       int totalCustomers = customers.length;
       int activeCustomers = 0;
       int totalOrders = 0;
@@ -54,13 +56,13 @@ class _CustomerAnalyticsViewState extends ConsumerState<CustomerAnalyticsView> {
 
       for (var customer in customers) {
         final validOrders = customer.productOrders
-            .where((order) => order.deliveryStatus != 'cancelled')
+            .where((order) => CustomerUtils.isValidPurchaseStatus(order.deliveryStatus))
             .toList();
 
         if (validOrders.isNotEmpty) {
           activeCustomers++;
           
-          final tier = CustomerUtils.getCustomerTier(customer)['tier'];
+          final tier = CustomerUtils.getCustomerTier(customer, settings)['tier'];
           tierCounts[tier] = (tierCounts[tier] ?? 0) + 1;
 
           for (var order in validOrders) {
@@ -96,7 +98,7 @@ class _CustomerAnalyticsViewState extends ConsumerState<CustomerAnalyticsView> {
           'totalOrders': totalOrders,
           'totalRevenue': totalRevenue,
           'averageOrderValue': totalOrders > 0 
-              ? (totalRevenue / totalOrders).round() 
+              ? (totalRevenue ~/ totalOrders) 
               : 0,
           'tierCounts': tierCounts,
           'monthlyRevenue': monthlyRevenue,

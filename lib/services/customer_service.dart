@@ -4,15 +4,68 @@ import 'dart:developer' as developer;
 
 class CustomerService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const int pageSize = 100;  // 페이지당 고객 수
 
-  // 고객 목록 조회 (스트림)
+  // 마지막으로 가�온 문서를 저장
+  DocumentSnapshot? _lastDocument;
+
+  // 페이지별 고객 목록 조회
+  Stream<List<Customer>> getCustomersByPage(int page) {
+    if (page == 0) {
+      _lastDocument = null;  // 첫 페이지면 초기화
+    }
+
+    var query = _firestore
+        .collection('users')
+        .limit(pageSize);
+
+    if (_lastDocument != null) {
+      query = query.startAfterDocument(_lastDocument!);
+    }
+
+    return query.snapshots().map((snapshot) {
+      if (snapshot.docs.isNotEmpty) {
+        _lastDocument = snapshot.docs.last;
+      }
+      
+      return snapshot.docs.map((doc) {
+        final data = doc.data();
+        // uid를 포함한 전체 데이터를 Customer.fromMap으로 전달
+        return Customer.fromMap({
+          ...data,
+          'uid': doc.id,
+          'isRegular': data['isRegular'] ?? false,
+          'isTroubled': data['isTroubled'] ?? false,
+        });
+      }).toList();
+    });
+  }
+
+  // 전체 고객 목록 조회
   Stream<List<Customer>> getCustomers() {
     return _firestore
         .collection('users')
         .snapshots()
-        .map((snapshot) => snapshot.docs
-            .map((doc) => Customer.fromMap(doc.id, doc.data()))
-            .toList());
+        .map((snapshot) => snapshot.docs.map((doc) {
+              final data = doc.data();
+              return Customer.fromMap({
+                ...data,
+                'uid': doc.id,
+                'isRegular': data['isRegular'] ?? false,
+                'isTroubled': data['isTroubled'] ?? false,
+              });
+            }).toList());
+  }
+
+  // 페이지 초기화
+  void resetPagination() {
+    _lastDocument = null;
+  }
+
+  // 전체 고객 수 조회
+  Future<int> getTotalCustomers() async {
+    final snapshot = await _firestore.collection('users').count().get();
+    return snapshot.count ?? 0;  // null 처리 추가
   }
 
   // 단일 고객 조회
@@ -20,7 +73,10 @@ class CustomerService {
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
       if (!doc.exists) return null;
-      return Customer.fromMap(doc.id, doc.data()!);
+      return Customer.fromMap({
+        ...doc.data()!,
+        'uid': doc.id,
+      });
     } catch (e) {
       developer.log('Error getting customer', error: e, name: 'CustomerService');
       return null;
@@ -48,7 +104,12 @@ class CustomerService {
       int totalRevenue = 0;     // 전체 매출액
 
       for (var doc in snapshot.docs) {
-        final customer = Customer.fromMap(doc.id, doc.data());
+        final data = doc.data() as Map<String, dynamic>;
+        final customer = Customer.fromMap({
+          'uid': doc.id,
+          ...data,
+        });
+        
         if (customer.productOrders.isNotEmpty) {
           activeCustomers++;
           totalOrders += customer.productOrders.length;
@@ -71,5 +132,13 @@ class CustomerService {
       developer.log('Error getting customer stats', error: e, name: 'CustomerService');
       rethrow;
     }
+  }
+
+  // 고객 정보 업데이트
+  Future<void> updateCustomer(Customer customer) async {
+    await _firestore
+        .collection('users')
+        .doc(customer.uid)
+        .update(customer.toMap());
   }
 } 

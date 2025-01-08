@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'customer_memo.dart';
 
 class CustomerAddress {
   final String id;
@@ -60,6 +61,7 @@ class CustomerOrder {
   final String receiverAddress1;
   final String receiverAddress2;
   final String receiverZip;
+  String userId;
 
   CustomerOrder({
     required this.orderNo,
@@ -81,6 +83,7 @@ class CustomerOrder {
     required this.receiverAddress1,
     required this.receiverAddress2,
     required this.receiverZip,
+    this.userId = '',
   });
 
   factory CustomerOrder.fromMap(Map<String, dynamic> map) {
@@ -104,6 +107,7 @@ class CustomerOrder {
       receiverAddress1: map['receiverAddress1'] ?? '',
       receiverAddress2: map['receiverAddress2'] ?? '',
       receiverZip: map['receiverZip'] ?? '',
+      userId: map['userId'] ?? '',
     );
   }
 
@@ -128,6 +132,7 @@ class CustomerOrder {
       'receiverAddress1': receiverAddress1,
       'receiverAddress2': receiverAddress2,
       'receiverZip': receiverZip,
+      'userId': userId,
     };
   }
 }
@@ -135,38 +140,39 @@ class CustomerOrder {
 class Customer {
   final String uid;
   final List<CustomerAddress> addresses;
-  final List<String> coupons;
-  final List<int> favorites;
   final List<CustomerOrder> productOrders;
+  final bool isRegular;
+  final bool isTroubled;
 
-  const Customer({
+  Customer({
     required this.uid,
-    this.addresses = const [],
-    this.coupons = const [],
-    this.favorites = const [],
-    this.productOrders = const [],
+    required this.addresses,
+    required this.productOrders,
+    this.isRegular = false,
+    this.isTroubled = false,
   });
 
-  factory Customer.fromMap(String uid, Map<String, dynamic> map) {
+  factory Customer.fromMap(Map<String, dynamic> map) {
     return Customer(
-      uid: uid,
+      uid: map['uid'] ?? '',
       addresses: (map['addresses'] as List<dynamic>? ?? [])
           .map((addr) => CustomerAddress.fromMap(addr))
           .toList(),
-      coupons: List<String>.from(map['coupons'] ?? []),
-      favorites: List<int>.from(map['favorites'] ?? []),
-      productOrders: (map['productOrders'] as List<dynamic>? ?? []) 
+      productOrders: (map['productOrders'] as List<dynamic>? ?? [])
           .map((order) => CustomerOrder.fromMap(order))
           .toList(),
+      isRegular: map['isRegular'] ?? false,
+      isTroubled: map['isTroubled'] ?? false,
     );
   }
 
   Map<String, dynamic> toMap() {
     return {
+      'uid': uid,
       'addresses': addresses.map((addr) => addr.toMap()).toList(),
-      'coupons': coupons,
-      'favorites': favorites,
       'productOrders': productOrders.map((order) => order.toMap()).toList(),
+      'isRegular': isRegular,
+      'isTroubled': isTroubled,
     };
   }
-} 
+}

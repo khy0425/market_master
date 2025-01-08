@@ -1,12 +1,15 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/order.dart';
 import 'dart:developer' as developer;
+import '../models/customer.dart';
 
 /// 주문 관련 서비스를 제공하는 클래스
 /// 
 /// Firebase Firestore와 통신하여 주문 데이터를 관리합니다.
 class OrderService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  static const int pageSize = 100;
+  DocumentSnapshot? _lastDocument;
 
   /// 모든 주문 목록을 스트림으로 제공
   /// 
@@ -168,7 +171,7 @@ class OrderService {
                    order.buyerEmail.toLowerCase().contains(query) ||
                    order.orderNo.toLowerCase().contains(query);
           })
-          .toList();  // 이미 정렬된 상태 유지
+          .toList();  // 이미 정렬된 상상태 유지
     });
   }
 
@@ -206,6 +209,103 @@ class OrderService {
       );
       rethrow;
     }
+  }
+
+  // 기간별 주문 조회 (페이지네이션 포함)
+  Stream<List<ProductOrder>> getOrdersByDateRange({
+    required DateTime startDate,
+    required DateTime endDate,
+    required int page,
+  }) {
+    return _firestore
+        .collection('users')
+        .snapshots()
+        .asyncMap((snapshot) async {
+          List<ProductOrder> orders = [];
+          
+          // 모든 상품 정보를 한 번에 가져오기
+          final productsSnapshot = await _firestore.collection('products').get();
+          final productsMap = Map.fromEntries(
+            productsSnapshot.docs.map((doc) => 
+              MapEntry(doc.data()['productNo']?.toString() ?? '', doc.data()['productName'] as String?)
+            )
+          );
+
+          for (var doc in snapshot.docs) {
+            var userData = doc.data();
+            if (userData['productOrders'] != null) {
+              List ordersList = userData['productOrders'] as List;
+              
+              for (var orderData in ordersList) {
+                if (orderData == null) continue;
+                
+                // 주문 날짜 파싱
+                final orderDate = DateTime.tryParse(orderData['orderDate']?.toString().split('.')[0] ?? '');
+                if (orderDate == null) continue;
+
+                // 날짜 범위 체크
+                if (orderDate.isAfter(startDate.subtract(const Duration(days: 1))) && 
+                    orderDate.isBefore(endDate.add(const Duration(days: 1)))) {
+                  
+                  // 주문 상품 정보에 상품명 추가
+                  List<dynamic> productNos = orderData['productNo'] as List? ?? [];
+                  List<String?> productNames = List<String?>.filled(productNos.length, null);
+                  
+                  for (int i = 0; i < productNos.length; i++) {
+                    String productNo = productNos[i].toString();
+                    productNames[i] = productsMap[productNo] ?? '상품 $productNo';
+                  }
+                  
+                  orderData['productNames'] = productNames;
+                  orderData['userId'] = doc.id;
+                  
+                  orders.add(ProductOrder.fromMap(orderData as Map<String, dynamic>));
+                }
+              }
+            }
+          }
+
+          // 날짜 기준 내림차순 정렬
+          orders.sort((a, b) => b.orderDate.compareTo(a.orderDate));
+          
+          // 페이지네이션 적용
+          final start = page * pageSize;
+          final end = start + pageSize;
+          
+          if (start >= orders.length) return [];
+          return orders.sublist(start, end > orders.length ? orders.length : end);
+        });
+  }
+
+  // 페이지 초기화
+  void resetPagination() {
+    _lastDocument = null;
+  }
+
+  // 전체 주문 수 조회 (기간별)
+  Future<int> getTotalOrders(DateTime startDate, DateTime endDate) async {
+    final snapshot = await _firestore
+        .collection('users')
+        .where('productOrders.orderDate', isGreaterThanOrEqualTo: startDate.toIso8601String())
+        .where('productOrders.orderDate', isLessThanOrEqualTo: endDate.toIso8601String())
+        .get();
+
+    int totalOrders = 0;
+    for (var doc in snapshot.docs) {
+      final customer = Customer.fromMap({
+        ...doc.data(),
+        'uid': doc.id,
+      });
+      
+      totalOrders += customer.productOrders.where((order) {
+        final orderDate = DateTime.tryParse(order.orderDate.split('.')[0]);
+        return orderDate != null &&
+               orderDate.isAfter(startDate) && 
+               orderDate.isBefore(endDate.add(const Duration(days: 1)));
+      }).length;
+    }
+
+    return totalOrders;
   }
 }
 

@@ -1,6 +1,8 @@
 import '../models/customer.dart';
+import '../models/order.dart' show OrderStatus;  // OrderStatus enum import
 import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
+import '../models/tier_settings.dart';
 
 class CustomerUtils {
   static final _numberFormat = NumberFormat('#,###');
@@ -12,44 +14,61 @@ class CustomerUtils {
   static const vipThreshold = 500000;    // 50만원 이상
   static const goldThreshold = 200000;   // 20만원 이상
 
+  /// 주문 상태 코드
+  static const STATUS_WAITING = 'waiting';      // 결제대기
+  static const STATUS_CONFIRMED = 'confirmed';  // 결제완료
+  static const STATUS_PREPARING = 'preparing';  // 배송준비
+  static const STATUS_SHIPPING = 'shipping';    // 배송중
+  static const STATUS_DELIVERED = 'delivered';  // 배송완료
+  static const STATUS_CANCELLED = 'cancelled';  // 취소
+  static const STATUS_RETURNED = '취소/반품';    // 반품
+
+  /// 유효한 구매액으로 인정되는 상태인지 확인
+  static bool isValidPurchaseStatus(String status) {
+    // OrderStatus enum의 값들과 비교
+    final orderStatus = OrderStatus.fromString(status);
+    return [
+      OrderStatus.confirmed,    // 주문확인
+      OrderStatus.preparing,    // 상품준비중
+      OrderStatus.shipping,     // 배송중
+      OrderStatus.delivered,    // 배송완료
+    ].contains(orderStatus);
+  }
+
   /// 주문 상태 표시 문자열과 색상
   static Map<String, dynamic> getOrderStatus(String status) {
-    switch (status) {
-      case 'waiting':
-        return {'text': '결제대기', 'color': Colors.orange};
-      case 'confirmed':
-        return {'text': '결제완료', 'color': Colors.blue};
-      case 'preparing':
-        return {'text': '배송준비', 'color': Colors.indigo};
-      case 'shipping':
-        return {'text': '배송중', 'color': Colors.green};
-      case 'delivered':
-        return {'text': '배송완료', 'color': Colors.grey};
-      case 'cancelled':
-        return {'text': '취소/반품', 'color': Colors.red};
-      default:
-        return {'text': status, 'color': Colors.black54};
+    final orderStatus = OrderStatus.fromString(status);
+    
+    switch (orderStatus) {
+      case OrderStatus.pending:
+        return {'text': orderStatus.text, 'color': Colors.orange};
+      case OrderStatus.confirmed:
+        return {'text': orderStatus.text, 'color': Colors.blue};
+      case OrderStatus.preparing:
+        return {'text': orderStatus.text, 'color': Colors.indigo};
+      case OrderStatus.shipping:
+        return {'text': orderStatus.text, 'color': Colors.green};
+      case OrderStatus.delivered:
+        return {'text': orderStatus.text, 'color': Colors.grey};
+      case OrderStatus.cancelled:
+        return {'text': orderStatus.text, 'color': Colors.red};
+      default:  // 기본값 추가
+        return {'text': '알 수 없음', 'color': Colors.grey};
     }
   }
 
-  /// 유효한 주문인지 확인 (결제 대기, 취소, 반품 제외)
-  static bool isValidOrder(CustomerOrder order) {
-    return order.deliveryStatus != 'waiting' &&  // 결제 대기 제외
-           order.deliveryStatus != 'cancelled';
-  }
-
-  /// 총 주문 금액 계산 (결제 대기, 취소, 반품 주문 제외)
+  /// 총 주문 금액 계산 (유효한 구매 상태의 주문만 포함)
   static int calculateTotalOrderAmount(Customer customer) {
     return customer.productOrders
-        .where((order) => isValidOrder(order))
+        .where((order) => isValidPurchaseStatus(order.deliveryStatus))
         .map((order) => order.paymentAmount)
         .fold(0, (a, b) => a + b);
   }
 
-  /// 유효 주문 수 계산 (결제 대기, 취소, 반품 주문 제외)
+  /// 유효 주문 수 계산 (유효한 구매 상태의 주문만 포함)
   static int getValidOrderCount(Customer customer) {
     return customer.productOrders
-        .where((order) => isValidOrder(order))
+        .where((order) => isValidPurchaseStatus(order.deliveryStatus))
         .length;
   }
 
@@ -81,7 +100,7 @@ class CustomerUtils {
   /// 최근 유효 주문일 가져오기 (결제 대기, 취소, 반품 제외)
   static String? getLastOrderDate(Customer customer) {
     final validOrders = customer.productOrders
-        .where((order) => isValidOrder(order))
+        .where((order) => isValidPurchaseStatus(order.deliveryStatus))
         .toList();
 
     if (validOrders.isEmpty) return null;
@@ -89,10 +108,10 @@ class CustomerUtils {
   }
 
   /// 주문 금액별 등급 계산과 색상
-  static Map<String, dynamic> getCustomerTier(Customer customer) {
-    final totalAmount = calculateTotalOrderAmount(customer);  // 이미 취소 주문이 제외된 금액
+  static Map<String, dynamic> getCustomerTier(Customer customer, TierSettings settings) {
+    final totalAmount = calculateTotalOrderAmount(customer);
 
-    if (totalAmount >= vvipThreshold) {
+    if (totalAmount >= settings.vvipThreshold) {
       return {
         'tier': 'VVIP',
         'color': Colors.red[700],
@@ -101,30 +120,30 @@ class CustomerUtils {
         'progress': 1.0,
       };
     }
-    if (totalAmount >= vipThreshold) {
+    if (totalAmount >= settings.vipThreshold) {
       return {
         'tier': 'VIP',
         'color': Colors.orange[700],
         'amount': totalAmount,
-        'nextTierAmount': vvipThreshold,
-        'progress': (totalAmount - vipThreshold) / (vvipThreshold - vipThreshold),
+        'nextTierAmount': settings.vvipThreshold,
+        'progress': (totalAmount - settings.vipThreshold) / (settings.vvipThreshold - settings.vipThreshold),
       };
     }
-    if (totalAmount >= goldThreshold) {
+    if (totalAmount >= settings.goldThreshold) {
       return {
         'tier': 'GOLD',
         'color': Colors.amber[700],
         'amount': totalAmount,
-        'nextTierAmount': vipThreshold,
-        'progress': (totalAmount - goldThreshold) / (vipThreshold - goldThreshold),
+        'nextTierAmount': settings.vipThreshold,
+        'progress': (totalAmount - settings.goldThreshold) / (settings.vipThreshold - settings.goldThreshold),
       };
     }
     return {
       'tier': 'BASIC',
       'color': Colors.blue[700],
       'amount': totalAmount,
-      'nextTierAmount': goldThreshold,
-      'progress': totalAmount / goldThreshold,
+      'nextTierAmount': settings.goldThreshold,
+      'progress': totalAmount / settings.goldThreshold,
     };
   }
 
@@ -138,12 +157,14 @@ class CustomerUtils {
     return '다음 등급까지 ${formatAmount(remaining)} 남음';
   }
 
-  /// 주문 요약 정보 (취소 여부 표시)
+  /// 주문 요약 정보
   static String getOrderSummary(CustomerOrder order) {
     final items = order.productNo.length;
     final total = formatAmount(order.paymentAmount);
-    if (order.deliveryStatus == 'cancelled') {
-      return '$items개 상품 $total (취소됨)';
+    
+    if (!isValidPurchaseStatus(order.deliveryStatus)) {
+      final status = OrderStatus.fromString(order.deliveryStatus).text;
+      return '$items개 상품 $total ($status)';
     }
     return '$items개 상품 $total';
   }
@@ -152,5 +173,10 @@ class CustomerUtils {
   static String formatAddress(CustomerAddress address) {
     return '${address.deliveryAddress1} ${address.deliveryAddress2}'
         '\n[${address.postalCode}]';
+  }
+
+  /// 날짜 포맷팅
+  static String formatDate(DateTime date) {
+    return DateFormat('yyyy-MM-dd HH:mm').format(date);
   }
 } 

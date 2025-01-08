@@ -2,33 +2,22 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 
 /// 주문 상태를 나타내는 열거형
 enum OrderStatus {
-  pending('주문접수'),
-  confirmed('주문확인'),
-  preparing('상품준비중'),
-  shipping('배송중'),
-  delivered('배송완료'),
-  cancelled('취소/반품');
+  pending('주문접수', 'pending'),
+  confirmed('주문확인', 'confirmed'),
+  preparing('상품준비중', 'preparing'),
+  shipping('배송중', 'shipping'),
+  delivered('배송완료', 'delivered'),
+  cancelled('취소/반품', 'cancelled');
 
   final String text;
-  const OrderStatus(this.text);
+  final String code;
+  const OrderStatus(this.text, this.code);
 
   static OrderStatus fromString(String status) {
-    switch (status) {
-      case '주문접수':
-        return OrderStatus.pending;
-      case '주문확인':
-        return OrderStatus.confirmed;
-      case '상품준비중':
-        return OrderStatus.preparing;
-      case '배송중':
-        return OrderStatus.shipping;
-      case '배송완료':
-        return OrderStatus.delivered;
-      case '취소/반품':
-        return OrderStatus.cancelled;
-      default:
-        return OrderStatus.pending;
-    }
+    return OrderStatus.values.firstWhere(
+      (s) => s.text == status || s.code == status,
+      orElse: () => OrderStatus.pending,
+    );
   }
 }
 
@@ -87,51 +76,42 @@ enum PaymentStatus {
   }
 }
 
+/// 결제 정보를 담는 클래스
+class PaymentInfo {
+  final String method;
+  final int amount;
+  final int deliveryFee;
+  final int subtotal;
+
+  PaymentInfo({
+    required this.method,
+    required this.amount,
+    required this.deliveryFee,
+    required this.subtotal,
+  });
+}
+
 /// 주문 상품 정보를 나타내는 클래스
 class OrderItem {
   final String productNo;
+  final String name;
   final int quantity;
   final int unitPrice;
-  final String? productName;
+  final int totalPrice;
   final String? productImageUrl;
-
-  /// 상품의 단가를 반환
-  int get price => unitPrice;
-
-  /// 상품의 총 금액 (단가 * 수량)을 계산
-  int get totalPrice => quantity * unitPrice;
 
   OrderItem({
     required this.productNo,
+    required this.name,
     required this.quantity,
     required this.unitPrice,
-    this.productName,
+    required this.totalPrice,
     this.productImageUrl,
   });
 
-  // fromMap 메서드 개선
-  factory OrderItem.fromMap(Map<String, dynamic> map, {
-    String? productName,
-    String? productImageUrl,
-  }) {
-    return OrderItem(
-      productNo: map['productNo']?.toString() ?? '',
-      quantity: map['quantity'] as int? ?? 0,
-      unitPrice: map['unitPrice'] as int? ?? 0,
-      productName: productName,
-      productImageUrl: productImageUrl,
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'productNo': productNo,
-      'quantity': quantity,
-      'unitPrice': unitPrice,
-      'productName': productName,
-      'productImageUrl': productImageUrl,
-    };
-  }
+  // 편의를 �한 getter
+  String get productName => name;
+  int get price => unitPrice;
 }
 
 /// 주문 처리 이력을 나타내는 클래스
@@ -171,278 +151,115 @@ class OrderHistory {
   }
 }
 
-/// 결제 정보를 나타내는 클래스
-class PaymentInfo {
-  final PaymentStatus status;
-  final PaymentMethodType method;
-  final int amount;
-  final DateTime paymentDate;
-  
-  // PG사 관련 정보
-  final String? pgProvider;
-  final String? paymentKey;
-  final String? transactionId;
-  final String? cardCompany;
-  final String? cardNumber;
-  final int? installmentPlan;
-  
-  // 가상계좌 정보
-  final String? virtualAccountBank;
-  final String? virtualAccountNumber;
-  final String? virtualAccountHolder;
-  final DateTime? virtualAccountExpiry;
-  
-  // 환불 정보
-  final int? refundAmount;
-  final DateTime? refundDate;
-  final String? refundReason;
-  final String? refundKey;
-
-  PaymentInfo({
-    required this.status,
-    required this.method,
-    required this.amount,
-    required this.paymentDate,
-    this.pgProvider,
-    this.paymentKey,
-    this.transactionId,
-    this.cardCompany,
-    this.cardNumber,
-    this.installmentPlan,
-    this.virtualAccountBank,
-    this.virtualAccountNumber,
-    this.virtualAccountHolder,
-    this.virtualAccountExpiry,
-    this.refundAmount,
-    this.refundDate,
-    this.refundReason,
-    this.refundKey,
-  });
-
-  factory PaymentInfo.fromMap(Map<String, dynamic> map) {
-    return PaymentInfo(
-      status: PaymentStatus.fromString(map['status'] ?? '결제대기'),
-      method: PaymentMethodType.fromString(map['method'] ?? '카드결제'),
-      amount: map['amount'] as int? ?? 0,
-      paymentDate: parseDateTime(map['paymentDate']),
-      pgProvider: map['pgProvider'],
-      paymentKey: map['paymentKey'],
-      transactionId: map['transactionId'],
-      cardCompany: map['cardCompany'],
-      cardNumber: map['cardNumber'],
-      installmentPlan: map['installmentPlan'],
-      virtualAccountBank: map['virtualAccountBank'],
-      virtualAccountNumber: map['virtualAccountNumber'],
-      virtualAccountHolder: map['virtualAccountHolder'],
-      virtualAccountExpiry: map['virtualAccountExpiry'] != null 
-          ? parseDateTime(map['virtualAccountExpiry'])
-          : null,
-      refundAmount: map['refundAmount'],
-      refundDate: map['refundDate'] != null 
-          ? parseDateTime(map['refundDate'])
-          : null,
-      refundReason: map['refundReason'],
-      refundKey: map['refundKey'],
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'status': status.text,
-      'method': method.text,
-      'amount': amount,
-      'paymentDate': paymentDate,
-      'pgProvider': pgProvider,
-      'paymentKey': paymentKey,
-      'transactionId': transactionId,
-      'cardCompany': cardCompany,
-      'cardNumber': cardNumber,
-      'installmentPlan': installmentPlan,
-      'virtualAccountBank': virtualAccountBank,
-      'virtualAccountNumber': virtualAccountNumber,
-      'virtualAccountHolder': virtualAccountHolder,
-      'virtualAccountExpiry': virtualAccountExpiry,
-      'refundAmount': refundAmount,
-      'refundDate': refundDate,
-      'refundReason': refundReason,
-      'refundKey': refundKey,
-    };
-  }
-}
-
 /// 주문 정보를 나타내는 클래스
 class ProductOrder {
-  final String userId;
   final String orderNo;
+  final DateTime orderDate;
   final String buyerName;
   final String buyerEmail;
   final String buyerPhone;
+  final String deliveryStatus;
+  final int deliveryFee;
+  final String deliveryRequest;
+  final int totalAmount;
+  final String paymentMethod;
+  final String? couponUsed;
+  final List<String> productNo;
+  final List<String>? productNames;
+  final List<int> quantity;
+  final List<int> unitPrice;
   final String receiverName;
   final String receiverPhone;
-  final String receiverZip;
   final String receiverAddress1;
   final String receiverAddress2;
-  final List<OrderItem> items;
-  final int deliveryFee;
-  final String deliveryStatus;
-  final String? deliveryRequest;
-  final String? couponUsed;
-  final DateTime orderDate;
+  final String receiverZip;
+  final String userId;
   final String? trackingNumber;
-  final List<OrderHistory> history;
-  final PaymentInfo payment;
-  
-  /// 배송지 전체 주소를 반환
+
+  // 편의를 위한 getter 메서드들
   String get shippingAddress => '$receiverAddress1 $receiverAddress2';
-  
-  /// 배송 요청사항을 반환
   String? get shippingNote => deliveryRequest;
-  
-  /// 현재 주문 상태를 OrderStatus 열거형으로 반환
   OrderStatus get status => OrderStatus.fromString(deliveryStatus);
-
-  ProductOrder({
-    required this.userId,
-    required this.orderNo,
-    required this.buyerName,
-    required this.buyerEmail,
-    required this.buyerPhone,
-    required this.receiverName,
-    required this.receiverPhone,
-    required this.receiverZip,
-    required this.receiverAddress1,
-    required this.receiverAddress2,
-    required this.items,
-    required this.deliveryFee,
-    required this.deliveryStatus,
-    this.deliveryRequest,
-    this.couponUsed,
-    required this.orderDate,
-    this.trackingNumber,
-    this.history = const [],
-    required this.payment,
-  });
-
-  factory ProductOrder.fromMap(Map<String, dynamic> map) {
-    // 주문 상품 정보 변환
-    List<dynamic> productNos = map['productNo'] as List? ?? [];
-    List<dynamic> quantities = map['quantity'] as List? ?? [];
-    List<dynamic> unitPrices = map['unitPrice'] as List? ?? [];
-    List<dynamic> productNames = map['productNames'] as List? ?? [];
-    
-    List<OrderItem> items = [];
-    for (int i = 0; i < productNos.length; i++) {
-      items.add(OrderItem.fromMap(
-        {
-          'productNo': productNos[i],
-          'quantity': quantities.length > i ? quantities[i] : 0,
-          'unitPrice': unitPrices.length > i ? unitPrices[i] : 0,
-        },
-        productName: productNames.length > i ? productNames[i]?.toString() : '상품 ${productNos[i]}',
-      ));
-    }
-
-    // 주문일시 파싱 로직 개선
-    DateTime parsedDate;
-    try {
-      if (map['orderDate'] is Timestamp) {
-        parsedDate = (map['orderDate'] as Timestamp).toDate();
-      } else if (map['orderDate'] is String) {
-        parsedDate = DateTime.parse(map['orderDate']);
-      } else {
-        // 주문일시가 없는 경우 1970년으로 설정
-        parsedDate = DateTime.fromMillisecondsSinceEpoch(0);
-      }
-    } catch (e) {
-      // 파싱 실패시에도 1970년으로 설정
-      parsedDate = DateTime.fromMillisecondsSinceEpoch(0);
-    }
-
-    // 주문 이력 변환
-    List<OrderHistory> historyList = [];
-    if (map['history'] != null) {
-      historyList = (map['history'] as List)
-          .map((item) => OrderHistory.fromMap(item as Map<String, dynamic>))
-          .toList();
-    }
-
-    // 기존 결제 정보를 PaymentInfo로 변환
-    PaymentInfo paymentInfo = PaymentInfo.fromMap(
-      map['payment'] as Map<String, dynamic>? ?? {
-        'status': map['paymentStatus'] ?? '결제완료',
-        'method': map['paymentMethod'] ?? '카드결제',
-        'amount': map['paymentAmount'] ?? 0,
-        'paymentDate': map['orderDate'],
-      }
-    );
-
-    return ProductOrder(
-      userId: map['userId']?.toString() ?? '',
-      orderNo: map['orderNo']?.toString() ?? '',
-      buyerName: map['buyerName']?.toString() ?? '',
-      buyerEmail: map['buyerEmail']?.toString() ?? '',
-      buyerPhone: map['buyerPhone']?.toString() ?? '',
-      receiverName: map['receiverName']?.toString() ?? '',
-      receiverPhone: map['receiverPhone']?.toString() ?? '',
-      receiverZip: map['receiverZip']?.toString() ?? '',
-      receiverAddress1: map['receiverAddress1']?.toString() ?? '',
-      receiverAddress2: map['receiverAddress2']?.toString() ?? '',
-      items: items,
-      deliveryFee: map['deliveryFee'] as int? ?? 0,
-      deliveryStatus: map['deliveryStatus']?.toString() ?? '주문접수',
-      deliveryRequest: map['deliveryRequest']?.toString(),
-      couponUsed: map['couponUsed']?.toString(),
-      orderDate: parsedDate,
-      trackingNumber: map['trackingNumber']?.toString(),
-      history: historyList,
-      payment: paymentInfo,
-    );
-  }
-
-  Map<String, dynamic> toMap() {
-    return {
-      'orderNo': orderNo,
-      'buyerName': buyerName,
-      'buyerEmail': buyerEmail,
-      'buyerPhone': buyerPhone,
-      'receiverName': receiverName,
-      'receiverPhone': receiverPhone,
-      'receiverZip': receiverZip,
-      'receiverAddress1': receiverAddress1,
-      'receiverAddress2': receiverAddress2,
-      'productNo': items.map((e) => e.productNo).toList(),
-      'quantity': items.map((e) => e.quantity).toList(),
-      'unitPrice': items.map((e) => e.unitPrice).toList(),
-      'deliveryFee': deliveryFee,
-      'deliveryStatus': deliveryStatus,
-      'deliveryRequest': deliveryRequest,
-      'couponUsed': couponUsed,
-      'orderDate': orderDate.toIso8601String(),
-      'trackingNumber': trackingNumber,
-      'history': history.map((h) => h.toMap()).toList(),
-      'payment': payment.toMap(),
-    };
-  }
-
-  /// 주문 상품의 총 금액을 계산 (배송비 포함)
-  int get totalAmount => items.fold<int>(
-    0, 
-    (sum, item) => sum + (item.price * item.quantity)
-  ) + deliveryFee;
-  
-  /// 결제가 완료되었는지 확인
-  bool get isPaymentCompleted => 
-    payment.status == PaymentStatus.completed;
-  
-  /// 주문 취소가 가능한지 확인
   bool get canBeCancelled => 
     status != OrderStatus.cancelled && 
     status != OrderStatus.delivered;
-
-  /// 환불이 가능한지 확인
   bool get canBeRefunded =>
-    status == OrderStatus.delivered &&
-    payment.status == PaymentStatus.completed;
+    status == OrderStatus.delivered;
+
+  // 결제 정보 관련 getter
+  PaymentInfo get payment => PaymentInfo(
+    method: paymentMethod,
+    amount: totalAmount,
+    deliveryFee: deliveryFee,
+    subtotal: totalAmount - deliveryFee,
+  );
+
+  // 주문 상품 정보 관련 getter
+  List<OrderItem> get items => List.generate(
+    productNo.length,
+    (i) => OrderItem(
+      productNo: productNo[i],
+      name: productNames?[i] ?? '상품 ${productNo[i]}',
+      quantity: quantity[i],
+      unitPrice: unitPrice[i],
+      totalPrice: unitPrice[i] * quantity[i],
+      productImageUrl: null,
+    ),
+  );
+
+  ProductOrder({
+    required this.orderNo,
+    required this.orderDate,
+    required this.buyerName,
+    required this.buyerEmail,
+    required this.buyerPhone,
+    required this.deliveryStatus,
+    required this.deliveryFee,
+    required this.deliveryRequest,
+    required this.totalAmount,
+    required this.paymentMethod,
+    this.couponUsed,
+    required this.productNo,
+    this.productNames,
+    required this.quantity,
+    required this.unitPrice,
+    required this.receiverName,
+    required this.receiverPhone,
+    required this.receiverAddress1,
+    required this.receiverAddress2,
+    required this.receiverZip,
+    required this.userId,
+    this.trackingNumber,
+  });
+
+  factory ProductOrder.fromMap(Map<String, dynamic> map) {
+    return ProductOrder(
+      orderNo: map['orderNo'] ?? '',
+      orderDate: DateTime.parse(map['orderDate'].toString().split('.')[0]),
+      buyerName: map['buyerName'] ?? '',
+      buyerEmail: map['buyerEmail'] ?? '',
+      buyerPhone: map['buyerPhone'] ?? '',
+      deliveryStatus: map['deliveryStatus'] ?? '',
+      deliveryFee: map['deliveryFee'] ?? 0,
+      deliveryRequest: map['deliveryRequest'] ?? '',
+      totalAmount: map['paymentAmount'] ?? 0,
+      paymentMethod: map['paymentMethod'] ?? '',
+      couponUsed: map['couponUsed'],
+      productNo: List<String>.from(map['productNo'] ?? []),
+      productNames: map['productNames'] != null 
+          ? List<String>.from(map['productNames'])
+          : null,
+      quantity: List<int>.from(map['quantity'] ?? []),
+      unitPrice: List<int>.from(map['unitPrice'] ?? []),
+      receiverName: map['receiverName'] ?? '',
+      receiverPhone: map['receiverPhone'] ?? '',
+      receiverAddress1: map['receiverAddress1'] ?? '',
+      receiverAddress2: map['receiverAddress2'] ?? '',
+      receiverZip: map['receiverZip'] ?? '',
+      userId: map['userId'] ?? '',
+      trackingNumber: map['trackingNumber'],
+    );
+  }
 }
 
 /// Timestamp 또는 String 형식의 날짜를 DateTime으로 변환
@@ -499,6 +316,78 @@ class OrderInfo {
       note: note,
       status: order.status,
       payment: order.payment,
+    );
+  }
+}
+
+// CustomerOrder를 OrderData로 변경
+class OrderData {
+  final String orderNo;
+  final String orderDate;
+  final String buyerName;
+  final String buyerEmail;
+  final String buyerPhone;
+  final String deliveryStatus;
+  final int deliveryFee;
+  final String deliveryRequest;
+  final int paymentAmount;
+  final String paymentMethod;
+  final String couponUsed;
+  final List<String> productNo;
+  final List<int> quantity;
+  final List<int> unitPrice;
+  final String receiverName;
+  final String receiverPhone;
+  final String receiverAddress1;
+  final String receiverAddress2;
+  final String receiverZip;
+  final String userId;
+
+  OrderData({
+    required this.orderNo,
+    required this.orderDate,
+    required this.buyerName,
+    required this.buyerEmail,
+    required this.buyerPhone,
+    required this.deliveryStatus,
+    required this.deliveryFee,
+    required this.deliveryRequest,
+    required this.paymentAmount,
+    required this.paymentMethod,
+    required this.couponUsed,
+    required this.productNo,
+    required this.quantity,
+    required this.unitPrice,
+    required this.receiverName,
+    required this.receiverPhone,
+    required this.receiverAddress1,
+    required this.receiverAddress2,
+    required this.receiverZip,
+    required this.userId,
+  });
+
+  factory OrderData.fromMap(Map<String, dynamic> map) {
+    return OrderData(
+      orderNo: map['orderNo'] ?? '',
+      orderDate: map['orderDate'] ?? '',
+      buyerName: map['buyerName'] ?? '',
+      buyerEmail: map['buyerEmail'] ?? '',
+      buyerPhone: map['buyerPhone'] ?? '',
+      deliveryStatus: map['deliveryStatus'] ?? '',
+      deliveryFee: map['deliveryFee'] ?? 0,
+      deliveryRequest: map['deliveryRequest'] ?? '',
+      paymentAmount: map['paymentAmount'] ?? 0,
+      paymentMethod: map['paymentMethod'] ?? '',
+      couponUsed: map['couponUsed'] ?? '',
+      productNo: List<String>.from(map['productNo'] ?? []),
+      quantity: List<int>.from(map['quantity'] ?? []),
+      unitPrice: List<int>.from(map['unitPrice'] ?? []),
+      receiverName: map['receiverName'] ?? '',
+      receiverPhone: map['receiverPhone'] ?? '',
+      receiverAddress1: map['receiverAddress1'] ?? '',
+      receiverAddress2: map['receiverAddress2'] ?? '',
+      receiverZip: map['receiverZip'] ?? '',
+      userId: map['userId'] ?? '',
     );
   }
 } 
