@@ -568,7 +568,7 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
     }
   }
 
-  // 메모 수� 다이얼로그
+  // 메모 수정 다이얼로그
   void _showEditMemoDialog(CustomerMemo memo) {
     final editController = TextEditingController(text: memo.content);
     

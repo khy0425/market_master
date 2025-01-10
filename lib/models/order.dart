@@ -109,7 +109,7 @@ class OrderItem {
     this.productImageUrl,
   });
 
-  // 편의를 �한 getter
+  // 편의를 위한 getter
   String get productName => name;
   int get price => unitPrice;
 }

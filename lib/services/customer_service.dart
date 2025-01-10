@@ -6,7 +6,7 @@ class CustomerService {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
   static const int pageSize = 100;  // 페이지당 고객 수
 
-  // 마지막으로 가�온 문서를 저장
+  // 마지막으로 가져온 문서를 저장
   DocumentSnapshot? _lastDocument;
 
   // 페이지별 고객 목록 조회
