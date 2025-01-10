@@ -16,6 +16,7 @@ class CustomerListView extends ConsumerStatefulWidget {
 }
 
 class _CustomerListViewState extends ConsumerState<CustomerListView> {
+  final Map<String, Widget> _customerItemCache = {};
   final _searchController = TextEditingController();
   int _currentPage = 0;
   int _totalPages = 1;
@@ -308,15 +309,19 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
   }
 
   Widget _buildCustomerTile(Customer customer) {
+    if (_customerItemCache.containsKey(customer.uid)) {
+      return _customerItemCache[customer.uid]!;
+    }
+
     final settingsAsyncValue = ref.watch(tierSettingsProvider);
     
-    return settingsAsyncValue.when(
+    final widget = settingsAsyncValue.when(
       data: (settings) {
         final lastOrderDate = CustomerUtils.getLastOrderDate(customer);
         final totalAmount = CustomerUtils.calculateTotalOrderAmount(customer);
         final tierInfo = CustomerUtils.getCustomerTier(customer, settings);
         
-        return Card(
+        final tile = Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: ListTile(
             leading: CircleAvatar(
@@ -375,10 +380,15 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
             onTap: () => _showCustomerDetail(customer),
           ),
         );
+
+        _customerItemCache[customer.uid] = tile;
+        return tile;
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('오류 발생: $error')),
     );
+
+    return widget;
   }
 
   // VIP 등급 설정 다이얼로그
@@ -499,11 +509,10 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
     }
 
     return ListView.builder(
+      addAutomaticKeepAlives: false,
+      addRepaintBoundaries: true,
       itemCount: customers.length,
-      itemBuilder: (context, index) {
-        final customer = customers[index];
-        return _buildCustomerTile(customer);
-      },
+      itemBuilder: (context, index) => _buildCustomerTile(customers[index]),
     );
   }
 

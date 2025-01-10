@@ -400,7 +400,7 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
                     isPrivate ? Icons.lock : Icons.lock_open,
                     color: isPrivate ? Colors.red : Colors.grey,
                   ),
-                  onPressed: () {
+                  onPressed: () { 
                     setState(() => isPrivate = !isPrivate);
                   },
                 ),

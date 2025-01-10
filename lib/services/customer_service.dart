@@ -8,15 +8,18 @@ class CustomerService {
 
   // 마지막으로 가져온 문서를 저장
   DocumentSnapshot? _lastDocument;
+  DateTime? _lastOrderDate;  // 마지막 주문 날짜 추가
 
-  // 페이지별 고객 목록 조회
+  // 페이지네이션 최적화
   Stream<List<Customer>> getCustomersByPage(int page) {
     if (page == 0) {
-      _lastDocument = null;  // 첫 페이지면 초기화
+      _lastDocument = null;
+      _lastOrderDate = null;
     }
 
     var query = _firestore
         .collection('users')
+        .orderBy('lastOrderDate', descending: true)
         .limit(pageSize);
 
     if (_lastDocument != null) {
@@ -26,18 +29,12 @@ class CustomerService {
     return query.snapshots().map((snapshot) {
       if (snapshot.docs.isNotEmpty) {
         _lastDocument = snapshot.docs.last;
+        _lastOrderDate = (snapshot.docs.last.data()['lastOrderDate'] as Timestamp?)?.toDate();
       }
-      
-      return snapshot.docs.map((doc) {
-        final data = doc.data();
-        // uid를 포함한 전체 데이터를 Customer.fromMap으로 전달
-        return Customer.fromMap({
-          ...data,
-          'uid': doc.id,
-          'isRegular': data['isRegular'] ?? false,
-          'isTroubled': data['isTroubled'] ?? false,
-        });
-      }).toList();
+      return snapshot.docs.map((doc) => Customer.fromMap({
+        ...doc.data(),
+        'uid': doc.id,
+      })).toList();
     });
   }
 
@@ -68,15 +65,27 @@ class CustomerService {
     return snapshot.count ?? 0;  // null 처리 추가
   }
 
-  // 단일 고객 조회
+  // 캐시 추가
+  final _customerCache = <String, Customer>{};
+  
   Future<Customer?> getCustomer(String uid) async {
+    // 캐시 확인
+    if (_customerCache.containsKey(uid)) {
+      return _customerCache[uid];
+    }
+
     try {
       final doc = await _firestore.collection('users').doc(uid).get();
       if (!doc.exists) return null;
-      return Customer.fromMap({
+      
+      final customer = Customer.fromMap({
         ...doc.data()!,
         'uid': doc.id,
       });
+      
+      // 캐시 저장
+      _customerCache[uid] = customer;
+      return customer;
     } catch (e) {
       developer.log('Error getting customer', error: e, name: 'CustomerService');
       return null;
@@ -141,4 +150,4 @@ class CustomerService {
         .doc(customer.uid)
         .update(customer.toMap());
   }
-} 
+}

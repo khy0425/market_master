@@ -1,19 +1,20 @@
 {
   "indexes": [
     {
-      "collectionGroup": "products",
+      "collectionGroup": "users",
       "queryScope": "COLLECTION",
       "fields": [
-        {
-          "fieldPath": "category",
-          "order": "ASCENDING"
-        },
-        {
-          "fieldPath": "productNo",
-          "order": "ASCENDING"
-        }
+        { "fieldPath": "lastOrderDate", "order": "DESCENDING" },
+        { "fieldPath": "isRegular", "order": "ASCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "users",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "isTroubled", "order": "ASCENDING" },
+        { "fieldPath": "lastOrderDate", "order": "DESCENDING" }
       ]
     }
-  ],
-  "fieldOverrides": []
+  ]
 }

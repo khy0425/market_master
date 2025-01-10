@@ -96,7 +96,7 @@ class CustomerOrder {
       deliveryStatus: map['deliveryStatus'] ?? '',
       deliveryFee: map['deliveryFee'] ?? 0,
       deliveryRequest: map['deliveryRequest'] ?? '',
-      paymentAmount: map['paymentAmount'] ?? 0,
+      paymentAmount: int.tryParse(map['paymentAmount']?.toString() ?? '0') ?? 0,
       paymentMethod: map['paymentMethod'] ?? '',
       couponUsed: map['couponUsed'] ?? '',
       productNo: List<String>.from(map['productNo'] ?? []),
@@ -135,6 +135,10 @@ class CustomerOrder {
       'userId': userId,
     };
   }
+
+  bool get isValid {
+    return !['cancelled', '취소/반품'].contains(deliveryStatus);
+  }
 }
 
 class Customer {
@@ -143,6 +147,14 @@ class Customer {
   final List<CustomerOrder> productOrders;
   final bool isRegular;
   final bool isTroubled;
+  int? _totalOrderAmount;
+  int get totalOrderAmount {
+    _totalOrderAmount ??= productOrders
+        .where((order) => order.isValid)
+        .fold<int>(0, (sum, order) => sum + order.paymentAmount);
+    return _totalOrderAmount!;
+  }
+  final DateTime? lastOrderDate;
 
   Customer({
     required this.uid,
@@ -150,19 +162,30 @@ class Customer {
     required this.productOrders,
     this.isRegular = false,
     this.isTroubled = false,
+    this.lastOrderDate,
   });
 
   factory Customer.fromMap(Map<String, dynamic> map) {
+    final orders = (map['productOrders'] as List<dynamic>? ?? [])
+        .map((order) => CustomerOrder.fromMap(order))
+        .toList();
+    
+    DateTime? lastOrderDate;
+    if (orders.isNotEmpty) {
+      lastOrderDate = orders
+          .map((order) => DateTime.parse(order.orderDate))
+          .reduce((a, b) => a.isAfter(b) ? a : b);
+    }
+
     return Customer(
       uid: map['uid'] ?? '',
       addresses: (map['addresses'] as List<dynamic>? ?? [])
           .map((addr) => CustomerAddress.fromMap(addr))
           .toList(),
-      productOrders: (map['productOrders'] as List<dynamic>? ?? [])
-          .map((order) => CustomerOrder.fromMap(order))
-          .toList(),
+      productOrders: orders,
       isRegular: map['isRegular'] ?? false,
       isTroubled: map['isTroubled'] ?? false,
+      lastOrderDate: lastOrderDate,
     );
   }
 
