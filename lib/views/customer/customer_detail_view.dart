@@ -161,7 +161,7 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
   Widget _buildSummaryCard(int totalAmount) {
     final tierInfo = CustomerUtils.getCustomerTier(widget.customer, widget.settings);
     final validOrderCount = CustomerUtils.getValidOrderCount(widget.customer);
-    
+
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -311,8 +311,8 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
                           order.orderNo,
                           style: TextStyle(
                             fontWeight: FontWeight.bold,
-                            color: order.deliveryStatus == 'cancelled' 
-                                ? Colors.grey 
+                            color: order.deliveryStatus == 'cancelled'
+                                ? Colors.grey
                                 : null,
                           ),
                         ),
@@ -400,7 +400,7 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
                     isPrivate ? Icons.lock : Icons.lock_open,
                     color: isPrivate ? Colors.red : Colors.grey,
                   ),
-                  onPressed: () { 
+                  onPressed: () {
                     setState(() => isPrivate = !isPrivate);
                   },
                 ),
@@ -438,51 +438,54 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
             ),
             const SizedBox(height: 16),
             // 메모 목록 표시
-            StreamBuilder<List<CustomerMemo>>(
-              stream: ref.read(customerMemosProvider(widget.customer.uid).stream),
-              builder: (context, snapshot) {
-                if (snapshot.hasError) {
-                  return Center(child: Text('에러가 발생했습니다: ${snapshot.error}'));
-                }
+            Consumer(
+              builder: (context, ref, child) {
+                final memosAsyncValue = ref.watch(
+                  customerMemosProvider(widget.customer.uid ?? '')
+                );
 
-                if (!snapshot.hasData) {
-                  return const Center(child: CircularProgressIndicator());
-                }
+                return memosAsyncValue.when(
+                  data: (memos) {
+                    if (memos.isEmpty) {
+                      return const Center(child: Text('등록된 메모가 없습니다'));
+                    }
 
-                final memos = snapshot.data!;
-                if (memos.isEmpty) {
-                  return const Center(child: Text('메모가 없습니다'));
-                }
-
-                return ListView.builder(
-                  shrinkWrap: true,
-                  physics: const NeverScrollableScrollPhysics(),
-                  itemCount: memos.length,
-                  itemBuilder: (context, index) {
-                    final memo = memos[index];
-                    return ListTile(
-                      leading: Icon(memo.type.icon, color: memo.type.color),
-                      title: Text(memo.content),
-                      subtitle: Text(
-                        CustomerUtils.formatDate(memo.createdAt),
-                        style: const TextStyle(fontSize: 12),
-                      ),
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (memo.isPrivate)
-                            const Icon(Icons.lock, color: Colors.red, size: 16),
-                          IconButton(
-                            icon: const Icon(Icons.edit, size: 20),
-                            onPressed: () => _showEditMemoDialog(memo),
+                    return ListView.builder(
+                      shrinkWrap: true,
+                      physics: const NeverScrollableScrollPhysics(),
+                      itemCount: memos.length,
+                      itemBuilder: (context, index) {
+                        final memo = memos[index];
+                        return ListTile(
+                          leading: Icon(memo.type.icon, color: memo.type.color),
+                          title: Text(memo.content),
+                          subtitle: Text(
+                            CustomerUtils.formatDate(memo.createdAt),
+                            style: const TextStyle(fontSize: 12),
                           ),
-                          IconButton(
-                            icon: const Icon(Icons.delete, size: 20),
-                            onPressed: () => _showDeleteMemoDialog(memo),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (memo.isPrivate)
+                                const Icon(Icons.lock, color: Colors.red, size: 16),
+                              IconButton(
+                                icon: const Icon(Icons.edit, size: 20),
+                                onPressed: () => _showEditMemoDialog(memo),
+                              ),
+                              IconButton(
+                                icon: const Icon(Icons.delete, size: 20),
+                                onPressed: () => _showDeleteMemoDialog(memo),
+                              ),
+                            ],
                           ),
-                        ],
-                      ),
+                        );
+                      },
                     );
+                  },
+                  loading: () => const Center(child: CircularProgressIndicator()),
+                  error: (error, stack) {
+                    print('메모 로드 에러: $error');
+                    return Center(child: Text('메모 로드 실패: $error'));
                   },
                 );
               },
@@ -498,19 +501,25 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
     if (memoController.text.trim().isEmpty) return;
 
     try {
+      // null 체크 추가
+      final customerId = widget.customer.uid;
+      if (customerId == null) {
+        throw Exception('고객 ID가 없습니다');
+      }
+
       final memo = CustomerMemo(
         id: DateTime.now().millisecondsSinceEpoch.toString(),
-        customerId: widget.customer.uid,
+        customerId: customerId,  // null이 아님이 보장됨
         content: memoController.text.trim(),
         adminId: 'admin',
         createdAt: DateTime.now(),
         type: memoType,
         isPrivate: isPrivate,
       );
-      
+
       await ref.read(customerMemoServiceProvider).addMemo(memo);
       memoController.clear();
-      
+
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('메모가 저장되었습니다')),
@@ -527,25 +536,13 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
 
   void _saveCustomerInfo() async {
     try {
-      // 1. 메모 저장 (내용이 있는 경우)
-      if (memoController.text.trim().isNotEmpty) {
-        final memo = CustomerMemo(
-          id: DateTime.now().millisecondsSinceEpoch.toString(),
-          customerId: widget.customer.uid,
-          content: memoController.text.trim(),
-          adminId: 'admin',
-          createdAt: DateTime.now(),
-          type: memoType,
-          isPrivate: isPrivate,
-        );
-        
-        await ref.read(customerMemoServiceProvider).addMemo(memo);
-        memoController.clear();
-      }
-
-      // 2. 고객 정보 업데이트 (단골/진상 상태만)
+      // 고객 정보 업데이트
       final updatedCustomer = Customer(
-        uid: widget.customer.uid,
+        id: widget.customer.id,
+        uid: widget.customer.uid ?? '',
+        name: widget.customer.name ?? '',
+        email: widget.customer.email ?? '',
+        joinDate: widget.customer.joinDate,
         addresses: widget.customer.addresses,
         productOrders: widget.customer.productOrders,
         isRegular: isRegular,
@@ -571,7 +568,7 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
   // 메모 수정 다이얼로그
   void _showEditMemoDialog(CustomerMemo memo) {
     final editController = TextEditingController(text: memo.content);
-    
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -593,7 +590,7 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
               try {
                 await ref.read(customerMemoServiceProvider)
                     .updateMemo(memo.id, editController.text.trim());
-                
+
                 if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -636,7 +633,7 @@ class _CustomerDetailContentState extends ConsumerState<CustomerDetailContent> {
               try {
                 await ref.read(customerMemoServiceProvider)
                     .deleteMemo(memo.id);
-                
+
                 if (mounted) {
                   Navigator.pop(context);
                   ScaffoldMessenger.of(context).showSnackBar(

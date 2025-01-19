@@ -12,8 +12,8 @@ class TierSettings {
   factory TierSettings.fromMap(Map<String, dynamic> map) {
     return TierSettings(
       vvipThreshold: map['vvipThreshold'] ?? 1000000,
-      vipThreshold: map['vipThreshold'] ?? 500000,
-      goldThreshold: map['goldThreshold'] ?? 200000,
+      vipThreshold: map['vipThreshold'] ?? 200000,
+      goldThreshold: map['goldThreshold'] ?? 50000,
     );
   }
 

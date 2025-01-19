@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:market_master/services/auth_service.dart';
+import 'package:market_master/views/dashboard/admin_dashboard_view.dart';
 import 'firebase_options.dart';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:firebase_auth/firebase_auth.dart';
@@ -17,34 +18,107 @@ import 'views/customer/customer_list_view.dart';
 /// Firebase 초기화 및 앱 실행을 담당합니다.
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  
-  try {
-    await Firebase.initializeApp(
-      options: DefaultFirebaseOptions.currentPlatform,
-    );
-    print('Firebase 초기화 성공');
-  } catch (e) {
-    print('Firebase 초기화 실패: $e');
-  }
-  
-  runApp(const ProviderScope(child: MyApp()));
+  await Firebase.initializeApp(
+    options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  runApp(
+    ProviderScope(
+      child: MaterialApp(
+        title: 'Market Master',
+        theme: ThemeData(
+          primarySwatch: Colors.blue,
+          useMaterial3: true,
+        ),
+        home: Consumer(
+          builder: (context, ref, _) {
+            return StreamBuilder<User?>(
+              stream: FirebaseAuth.instance.authStateChanges(),
+              builder: (context, snapshot) {
+                if (snapshot.connectionState == ConnectionState.waiting) {
+                  return const Scaffold(
+                    body: Center(
+                      child: CircularProgressIndicator(),
+                    ),
+                  );
+                }
+                
+                return snapshot.hasData 
+                    ? const AdminDashboardView() 
+                    : const LoginView();
+              },
+            );
+          },
+        ),
+      ),
+    ),
+  );
 }
 
 /// 앱의 루트 위젯
 /// 
 /// 테마 설정 및 라우팅 설정을 담당합니다.
-class MyApp extends StatelessWidget {
+class MyApp extends ConsumerWidget {
   const MyApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp(
       title: 'Market Master',
       theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.blue),
-        useMaterial3: true,
+        // 밝은 테마 기본 설정
+        brightness: Brightness.light,
+        
+        // 기본 배경색을 흰색으로 설정
+        scaffoldBackgroundColor: Colors.white,
+        
+        // AppBar 테마
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Colors.white,
+          foregroundColor: Colors.black,
+          elevation: 0,
+        ),
+        
+        // 카드 테마
+        cardTheme: const CardTheme(
+          color: Colors.white,
+          elevation: 1,
+        ),
+        
+        // 기본 색상 스키마
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: Colors.blue,
+          background: Colors.white,
+          surface: Colors.white,
+        ),
+        
+        // 입력 필드 테마
+        inputDecorationTheme: InputDecorationTheme(
+          filled: true,
+          fillColor: Colors.grey[50],
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+          enabledBorder: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(8),
+            borderSide: BorderSide(color: Colors.grey[300]!),
+          ),
+        ),
       ),
-      home: const AuthWrapper(),
+      home: StreamBuilder(
+        stream: FirebaseAuth.instance.authStateChanges(),
+        builder: (context, snapshot) {
+          if (snapshot.connectionState == ConnectionState.waiting) {
+            return const Center(child: CircularProgressIndicator());
+          }
+          
+          // 로그인된 상태면 대시보드로, 아니면 로그인 화면으로
+          return snapshot.hasData 
+              ? const AdminDashboardView()
+              : const LoginView();
+        },
+      ),
     );
   }
 }

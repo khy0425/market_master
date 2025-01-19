@@ -1,4 +1,5 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:rxdart/rxdart.dart';
 import '../models/order.dart';
 import 'dart:developer' as developer;
 import '../models/customer.dart';
@@ -7,65 +8,61 @@ import '../models/customer.dart';
 /// 
 /// Firebase Firestore와 통신하여 주문 데이터를 관리합니다.
 class OrderService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
   static const int pageSize = 100;
   DocumentSnapshot? _lastDocument;
 
-  /// 모든 주문 목록을 스트림으로 제공
-  /// 
-  /// 주문일시 기준 내림차순으로 정렬됩니다.
-  Stream<List<ProductOrder>> getOrders() {
-    return _firestore
-        .collection('users')
-        .snapshots()
-        .asyncMap((snapshot) async {
-          List<ProductOrder> orders = [];
-          
-          // 모든 상품 정보를 한 번에 가져오기
-          final productsSnapshot = await _firestore.collection('products').get();
-          final productsMap = Map.fromEntries(
-            productsSnapshot.docs.map((doc) => 
-              MapEntry(doc.data()['productNo']?.toString() ?? '', doc.data()['productName'] as String?)
-            )
-          );
+  // 주문 스트림 캐시
+  final _ordersSubject = BehaviorSubject<List<ProductOrder>>();
 
-          // 모든 사용자의 주문 정보 수집
+  // 캐시된 주문 데이터
+  List<ProductOrder>? _cachedOrders;
+  Stream<List<ProductOrder>>? _ordersStream;
+
+  Stream<List<ProductOrder>> getOrders() {
+    // 캐시된 스트림이 있으면 재사용
+    _ordersStream ??= _db.collection('users')
+        .snapshots()
+        .map((snapshot) {
+          print('[OrderService] Firestore 데이터 수신: ${snapshot.docs.length}건');
+          
+          List<ProductOrder> allOrders = [];
+          
           for (var doc in snapshot.docs) {
-            var userData = doc.data();
-            if (userData['productOrders'] != null) {
-              List ordersList = userData['productOrders'] as List;
-              orders.addAll(
-                ordersList.map((orderData) {
-                  if (orderData == null) return null;
-                  
-                  // 주문 상품 정보에 상품명 추가
-                  List<dynamic> productNos = orderData['productNo'] as List? ?? [];
-                  List<String?> productNames = List<String?>.filled(productNos.length, null);
-                  
-                  for (int i = 0; i < productNos.length; i++) {
-                    String productNo = productNos[i].toString();
-                    // products 컬렉션에서 가져온 상품명 매핑
-                    productNames[i] = productsMap[productNo] ?? '상품 $productNo';
-                  }
-                  
-                  // productNames 배열을 orderData에 추가
-                  orderData['productNames'] = productNames;
+            try {
+              final data = doc.data();
+              final List<dynamic> orders = data['productOrders'] ?? [];
+              
+              for (var orderData in orders) {
+                try {
                   orderData['userId'] = doc.id;
-                  
-                  return ProductOrder.fromMap(orderData as Map<String, dynamic>);
-                }).whereType<ProductOrder>()
-              );
+                  final order = ProductOrder.fromMap(
+                    orderData['orderNo'], 
+                    Map<String, dynamic>.from(orderData)
+                  );
+                  allOrders.add(order);
+                } catch (e) {
+                  print('[OrderService] 주문 변환 오류: $e');
+                }
+              }
+            } catch (e) {
+              print('[OrderService] 사용자 데이터 처리 오류: $e');
             }
           }
+          
+          allOrders.sort((a, b) => 
+            (b.orderDate ?? DateTime.now())
+              .compareTo(a.orderDate ?? DateTime.now())
+          );
+          
+          // 캐시 업데이트
+          _cachedOrders = allOrders;
+          
+          print('[OrderService] 총 변환된 주문 수: ${allOrders.length}건');
+          return allOrders;
+        }).asBroadcastStream();  // 여러 구독자가 공유할 수 있도록
 
-          orders.sort((a, b) {
-            final dateA = a.orderDate ?? DateTime.now();
-            final dateB = b.orderDate ?? DateTime.now();
-            return dateB.compareTo(dateA);
-          });
-
-          return orders;
-        });
+    return _ordersStream!;
   }
 
   /// 주문 상태를 업데이트
@@ -84,7 +81,7 @@ class OrderService {
         note: note
       );
 
-      final userDoc = await _firestore.collection('users').doc(orderInfo.userId).get();
+      final userDoc = await _db.collection('users').doc(orderInfo.userId).get();
       List<dynamic> orders = userDoc.data()?['productOrders'] ?? [];
       int orderIndex = orders.indexWhere((o) => o['orderNo'] == orderInfo.orderNo);
       
@@ -106,7 +103,7 @@ class OrderService {
         'note': orderInfo.note,
       });
 
-      await _firestore.collection('users').doc(orderInfo.userId).update({
+      await _db.collection('users').doc(orderInfo.userId).update({
         'productOrders': orders,
       });
     } catch (e) {
@@ -118,7 +115,7 @@ class OrderService {
   /// 결제 상태 업데이트
   Future<void> updatePaymentStatus(OrderInfo order, PaymentStatus newStatus) async {
     try {
-      final userDoc = await _firestore.collection('users').doc(order.userId).get();
+      final userDoc = await _db.collection('users').doc(order.userId).get();
       List<dynamic> orders = userDoc.data()?['productOrders'] ?? [];
       int orderIndex = orders.indexWhere((o) => o['orderNo'] == order.orderNo);
       
@@ -127,7 +124,7 @@ class OrderService {
       // 결제 상태 업데이트
       orders[orderIndex]['payment']['status'] = newStatus.text;
 
-      await _firestore.collection('users').doc(order.userId).update({
+      await _db.collection('users').doc(order.userId).update({
         'productOrders': orders,
       });
     } catch (e) {
@@ -139,7 +136,7 @@ class OrderService {
   /// 환불 처리
   Future<void> processRefund(OrderInfo order, RefundDetails refundDetails) async {
     try {
-      final userDoc = await _firestore.collection('users').doc(order.userId).get();
+      final userDoc = await _db.collection('users').doc(order.userId).get();
       List<dynamic> orders = userDoc.data()?['productOrders'] ?? [];
       int orderIndex = orders.indexWhere((o) => o['orderNo'] == order.orderNo);
       
@@ -151,7 +148,7 @@ class OrderService {
       orders[orderIndex]['payment']['refundDate'] = DateTime.now();
       orders[orderIndex]['payment']['refundReason'] = refundDetails.reason;
 
-      await _firestore.collection('users').doc(order.userId).update({
+      await _db.collection('users').doc(order.userId).update({
         'productOrders': orders,
       });
     } catch (e) {
@@ -160,18 +157,22 @@ class OrderService {
     }
   }
 
-  // 주문 검색 (검색 결과도 정렬 유지)
+  // 주문 검색
   Stream<List<ProductOrder>> searchOrders(String query) {
     query = query.toLowerCase().trim();
     
     return getOrders().map((orders) {
       return orders
           .where((order) {
-            return order.buyerName.toLowerCase().contains(query) ||
-                   order.buyerEmail.toLowerCase().contains(query) ||
-                   order.orderNo.toLowerCase().contains(query);
+            final buyerName = order.buyerName?.toLowerCase() ?? '';
+            final buyerEmail = order.buyerEmail?.toLowerCase() ?? '';
+            final orderNo = order.orderNo?.toLowerCase() ?? '';
+            
+            return buyerName.contains(query) ||
+                   buyerEmail.contains(query) ||
+                   orderNo.contains(query);
           })
-          .toList();  // 이미 정렬된 상상태 유지
+          .toList();
     });
   }
 
@@ -184,7 +185,7 @@ class OrderService {
   ) async {
     try {
       // 운송장 번호 업데이트
-      final userDoc = await _firestore.collection('users').doc(order.userId).get();
+      final userDoc = await _db.collection('users').doc(order.userId).get();
       List<dynamic> orders = userDoc.data()?['productOrders'] ?? [];
       int orderIndex = orders.indexWhere((o) => o['orderNo'] == order.orderNo);
       
@@ -211,20 +212,20 @@ class OrderService {
     }
   }
 
-  // 기간별 주문 조회 (페이지네이션 포함)
+  // 기간별 주문 조회
   Stream<List<ProductOrder>> getOrdersByDateRange({
     required DateTime startDate,
     required DateTime endDate,
     required int page,
   }) {
-    return _firestore
+    return _db
         .collection('users')
         .snapshots()
         .asyncMap((snapshot) async {
           List<ProductOrder> orders = [];
           
           // 모든 상품 정보를 한 번에 가져오기
-          final productsSnapshot = await _firestore.collection('products').get();
+          final productsSnapshot = await _db.collection('products').get();
           final productsMap = Map.fromEntries(
             productsSnapshot.docs.map((doc) => 
               MapEntry(doc.data()['productNo']?.toString() ?? '', doc.data()['productName'] as String?)
@@ -259,14 +260,21 @@ class OrderService {
                   orderData['productNames'] = productNames;
                   orderData['userId'] = doc.id;
                   
-                  orders.add(ProductOrder.fromMap(orderData as Map<String, dynamic>));
+                  orders.add(ProductOrder.fromMap(
+                    doc.id,  // 문서 ID를 첫 번째 인자로 전달
+                    orderData as Map<String, dynamic>
+                  ));
                 }
               }
             }
           }
 
           // 날짜 기준 내림차순 정렬
-          orders.sort((a, b) => b.orderDate.compareTo(a.orderDate));
+          orders.sort((a, b) {
+            final aDate = a.orderDate ?? DateTime.now();
+            final bDate = b.orderDate ?? DateTime.now();
+            return bDate.compareTo(aDate);
+          });
           
           // 페이지네이션 적용
           final start = page * pageSize;
@@ -284,7 +292,7 @@ class OrderService {
 
   // 전체 주문 수 조회 (기간별)
   Future<int> getTotalOrders(DateTime startDate, DateTime endDate) async {
-    final snapshot = await _firestore
+    final snapshot = await _db
         .collection('users')
         .where('productOrders.orderDate', isGreaterThanOrEqualTo: startDate.toIso8601String())
         .where('productOrders.orderDate', isLessThanOrEqualTo: endDate.toIso8601String())
@@ -292,10 +300,10 @@ class OrderService {
 
     int totalOrders = 0;
     for (var doc in snapshot.docs) {
-      final customer = Customer.fromMap({
-        ...doc.data(),
-        'uid': doc.id,
-      });
+      final customer = Customer.fromMap(
+        doc.id,  // 문서 ID를 첫 번째 인자로 전달
+        doc.data()  // 데이터를 두 번째 인자로 전달
+      );
       
       totalOrders += customer.productOrders.where((order) {
         final orderDate = DateTime.tryParse(order.orderDate.split('.')[0]);
@@ -306,6 +314,30 @@ class OrderService {
     }
 
     return totalOrders;
+  }
+
+  // 서비스 정리
+  void dispose() {
+    _ordersSubject.close();
+  }
+
+  // 고객별 주문 조회
+  Stream<List<ProductOrder>> getCustomerOrders(String customerId) {
+    return _db
+        .collection('orders')
+        .where('customerId', isEqualTo: customerId)
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => ProductOrder.fromMap(
+                  doc.id,  // 문서 ID를 첫 번째 인자로 전달
+                  doc.data()
+                ))
+            .toList());
+  }
+
+  // 캐시된 데이터 반환
+  List<ProductOrder> getCachedOrders() {
+    return _cachedOrders ?? [];
   }
 }
 

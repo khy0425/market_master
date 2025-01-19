@@ -25,35 +25,38 @@ class CustomerUtils {
 
   /// 유효한 구매액으로 인정되는 상태인지 확인
   static bool isValidPurchaseStatus(String status) {
-    // OrderStatus enum의 값들과 비교
-    final orderStatus = OrderStatus.fromString(status);
-    return [
-      OrderStatus.confirmed,    // 주문확인
-      OrderStatus.preparing,    // 상품준비중
-      OrderStatus.shipping,     // 배송중
-      OrderStatus.delivered,    // 배송완료
-    ].contains(orderStatus);
+    // 입금 대기와 취소/반품만 제외하고 모든 상태를 유효한 구매로 인정
+    return ![
+      'waiting',        // 입금 대기
+      '입금대기',        // 입금 대기 (한글)
+      'cancelled',      // 취소
+      '취소/반품',       // 반품
+    ].contains(status);
   }
 
   /// 주문 상태 표시 문자열과 색상
   static Map<String, dynamic> getOrderStatus(String status) {
-    final orderStatus = OrderStatus.fromString(status);
-    
-    switch (orderStatus) {
-      case OrderStatus.pending:
-        return {'text': orderStatus.text, 'color': Colors.orange};
-      case OrderStatus.confirmed:
-        return {'text': orderStatus.text, 'color': Colors.blue};
-      case OrderStatus.preparing:
-        return {'text': orderStatus.text, 'color': Colors.indigo};
-      case OrderStatus.shipping:
-        return {'text': orderStatus.text, 'color': Colors.green};
-      case OrderStatus.delivered:
-        return {'text': orderStatus.text, 'color': Colors.grey};
-      case OrderStatus.cancelled:
-        return {'text': orderStatus.text, 'color': Colors.red};
-      default:  // 기본값 추가
-        return {'text': '알 수 없음', 'color': Colors.grey};
+    switch (status.toLowerCase()) {
+      case 'waiting':
+      case '입금대기':
+        return {'text': '입금 대기', 'color': Colors.orange};
+      case 'confirmed':
+      case '주문접수':
+        return {'text': '주문 접수', 'color': Colors.blue};
+      case 'preparing':
+      case '상품준비중':
+        return {'text': '상품 준비중', 'color': Colors.indigo};
+      case 'shipping':
+      case '배송중':
+        return {'text': '배송중', 'color': Colors.green};
+      case 'delivered':
+      case '배송완료':
+        return {'text': '배송완료', 'color': Colors.grey};
+      case 'cancelled':
+      case '취소/반품':
+        return {'text': '취소/반품', 'color': Colors.red};
+      default:
+        return {'text': status, 'color': Colors.grey};  // 알 수 없는 상태는 원본 텍스트 표시
     }
   }
 
@@ -67,9 +70,7 @@ class CustomerUtils {
 
   /// 유효 주문 수 계산 (유효한 구매 상태의 주문만 포함)
   static int getValidOrderCount(Customer customer) {
-    return customer.productOrders
-        .where((order) => isValidPurchaseStatus(order.deliveryStatus))
-        .length;
+    return customer.validOrderCount;
   }
 
   /// 주문 금액 포맷팅 (₩ 기호 추가)
@@ -109,41 +110,50 @@ class CustomerUtils {
 
   /// 주문 금액별 등급 계산과 색상
   static Map<String, dynamic> getCustomerTier(Customer customer, TierSettings settings) {
-    final totalAmount = calculateTotalOrderAmount(customer);
-
+    final totalAmount = customer.totalOrderAmount;  // 입금 대기 제외된 금액
+    
+    // VVIP 등급 (100만원 이상)
     if (totalAmount >= settings.vvipThreshold) {
       return {
         'tier': 'VVIP',
-        'color': Colors.red[700],
-        'amount': totalAmount,
+        'color': Colors.purple,
         'nextTierAmount': null,
         'progress': 1.0,
       };
     }
+    
+    // VIP 등급 (50만원 이상)
     if (totalAmount >= settings.vipThreshold) {
+      final remaining = settings.vvipThreshold - totalAmount;
+      final progress = totalAmount / settings.vvipThreshold;
       return {
         'tier': 'VIP',
-        'color': Colors.orange[700],
-        'amount': totalAmount,
-        'nextTierAmount': settings.vvipThreshold,
-        'progress': (totalAmount - settings.vipThreshold) / (settings.vvipThreshold - settings.vipThreshold),
+        'color': Colors.blue,
+        'nextTierAmount': remaining,
+        'progress': progress,
       };
     }
+    
+    // GOLD 등급 (20만원 이상)
     if (totalAmount >= settings.goldThreshold) {
+      final remaining = settings.vipThreshold - totalAmount;
+      final progress = totalAmount / settings.vipThreshold;
       return {
         'tier': 'GOLD',
-        'color': Colors.amber[700],
-        'amount': totalAmount,
-        'nextTierAmount': settings.vipThreshold,
-        'progress': (totalAmount - settings.goldThreshold) / (settings.vipThreshold - settings.goldThreshold),
+        'color': Colors.amber,
+        'nextTierAmount': remaining,
+        'progress': progress,
       };
     }
+    
+    // BASIC 등급
+    final remaining = settings.goldThreshold - totalAmount;
+    final progress = totalAmount / settings.goldThreshold;
     return {
       'tier': 'BASIC',
-      'color': Colors.blue[700],
-      'amount': totalAmount,
-      'nextTierAmount': settings.goldThreshold,
-      'progress': totalAmount / settings.goldThreshold,
+      'color': Colors.grey,
+      'nextTierAmount': remaining,
+      'progress': progress,
     };
   }
 
@@ -152,9 +162,7 @@ class CustomerUtils {
     if (tierInfo['nextTierAmount'] == null) {
       return '최고 등급입니다';
     }
-
-    final remaining = tierInfo['nextTierAmount'] - tierInfo['amount'];
-    return '다음 등급까지 ${formatAmount(remaining)} 남음';
+    return '다음 등급까지 ${formatAmount(tierInfo['nextTierAmount'])} 남음';
   }
 
   /// 주문 요약 정보

@@ -37,17 +37,17 @@ class _TierSettingsViewState extends ConsumerState<TierSettingsView> {
   Widget build(BuildContext context) {
     final settingsAsyncValue = ref.watch(tierSettingsProvider);
 
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('VIP 등급 설정'),
-      ),
-      body: settingsAsyncValue.when(
-        data: (settings) {
-          _vvipController.text = settings.vvipThreshold.toString();
-          _vipController.text = settings.vipThreshold.toString();
-          _goldController.text = settings.goldThreshold.toString();
+    return settingsAsyncValue.when(
+      data: (settings) {
+        _vvipController.text = (settings.vvipThreshold / 10000).round().toString();
+        _vipController.text = (settings.vipThreshold / 10000).round().toString();
+        _goldController.text = (settings.goldThreshold / 10000).round().toString();
 
-          return SingleChildScrollView(
+        return Scaffold(
+          appBar: AppBar(
+            title: const Text('VIP 등급 설정'),
+          ),
+          body: SingleChildScrollView(
             padding: const EdgeInsets.all(16.0),
             child: Form(
               key: _formKey,
@@ -82,11 +82,11 @@ class _TierSettingsViewState extends ConsumerState<TierSettingsView> {
                 ],
               ),
             ),
-          );
-        },
-        loading: () => const Center(child: CircularProgressIndicator()),
-        error: (error, stack) => Center(child: Text('오류 발생: $error')),
-      ),
+          ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (error, stack) => Center(child: Text('설정 로드 오류: $error')),
     );
   }
 

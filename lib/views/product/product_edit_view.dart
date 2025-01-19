@@ -10,6 +10,9 @@ import '../../utils/format_utils.dart';
 // 프로바이더 추가
 final productServiceProvider = Provider((ref) => ProductService());
 
+// _isLoading 상태를 AsyncValue로 대체하여 더 선언적으로 관리
+final _loadingProvider = StateProvider<bool>((ref) => false);
+
 class ProductEditView extends ConsumerStatefulWidget {
   final Product product;
 

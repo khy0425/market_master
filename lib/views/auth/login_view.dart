@@ -1,10 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../providers/auth_provider.dart';
-import 'register_view.dart';
+import '../../utils/error_utils.dart';
+import '../../constants/ui_constants.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+
+import '../dashboard/admin_dashboard_view.dart';
 
 class LoginView extends ConsumerStatefulWidget {
-  const LoginView({super.key});
+  const LoginView({Key? key}) : super(key: key);
 
   @override
   ConsumerState<LoginView> createState() => _LoginViewState();
@@ -14,10 +18,11 @@ class _LoginViewState extends ConsumerState<LoginView> {
   final _formKey = GlobalKey<FormState>();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
+  final _passwordFocusNode = FocusNode();
   bool _isLoading = false;
   String? _errorMessage;
 
-  Future<void> _login() async {
+  Future<void> _handleLogin() async {
     if (!_formKey.currentState!.validate()) return;
 
     setState(() {
@@ -27,36 +32,37 @@ class _LoginViewState extends ConsumerState<LoginView> {
 
     try {
       await ref.read(authServiceProvider).signInWithEmail(
-            _emailController.text,
-            _passwordController.text,
-          );
-    } catch (e) {
+        _emailController.text,
+        _passwordController.text,
+      );
+
+      if (!mounted) return;
+
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute<void>(
+          builder: (context) => const AdminDashboardView() as Widget,
+        ),
+      );
+    } on FirebaseAuthException catch (e) {
       setState(() {
-        _errorMessage = _getErrorMessage(e.toString());
+        _errorMessage = e.message;
       });
     } finally {
       if (mounted) {
-        setState(() => _isLoading = false);
+        setState(() {
+          _isLoading = false;
+        });
       }
     }
   }
 
-  String _getErrorMessage(String error) {
-    if (error.contains('invalid-credential')) {
-      return '아이디 또는 비밀번호가 올바르지 않습니다.';
-    } else if (error.contains('user-not-found')) {
-      return '등록되지 않은 이메일입니다.';
-    } else if (error.contains('wrong-password')) {
-      return '비밀번호가 올바르지 않습니다.';
-    } else if (error.contains('user-disabled')) {
-      return '비활성화된 계정입니다. 관리자에게 문의하세요.';
-    } else if (error.contains('too-many-requests')) {
-      return '너무 많은 로그인 시도가 있었습니다. 잠시 후 다시 시도해주세요.';
-    } else if (error.contains('network-request-failed')) {
-      return '네트워크 연결을 확인해주세요.';
-    } else {
-      return '로그인 중 오류가 발생했습니다. 잠시 후 다시 시도해주세요.';
-    }
+  @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    _passwordFocusNode.dispose();
+    super.dispose();
   }
 
   @override
@@ -64,11 +70,11 @@ class _LoginViewState extends ConsumerState<LoginView> {
     return Scaffold(
       body: Center(
         child: Card(
-          margin: const EdgeInsets.all(32),
+          margin: EdgeInsets.all(UIConstants.largePadding),
           child: Padding(
-            padding: const EdgeInsets.all(32.0),
+            padding: EdgeInsets.all(UIConstants.largePadding),
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 400),
+              constraints: BoxConstraints(maxWidth: UIConstants.maxFormWidth),
               child: Form(
                 key: _formKey,
                 child: Column(
@@ -108,6 +114,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
                         prefixIcon: Icon(Icons.lock),
                       ),
                       obscureText: true,
+                      onFieldSubmitted: (_) => _handleLogin(),
                       validator: (value) {
                         if (value == null || value.isEmpty) {
                           return '비밀번호를 입력하세요';
@@ -129,7 +136,7 @@ class _LoginViewState extends ConsumerState<LoginView> {
                       width: double.infinity,
                       height: 48,
                       child: ElevatedButton(
-                        onPressed: _isLoading ? null : _login,
+                        onPressed: _isLoading ? null : _handleLogin,
                         child: _isLoading
                             ? const SizedBox(
                                 width: 24,
@@ -147,12 +154,5 @@ class _LoginViewState extends ConsumerState<LoginView> {
         ),
       ),
     );
-  }
-
-  @override
-  void dispose() {
-    _emailController.dispose();
-    _passwordController.dispose();
-    super.dispose();
   }
 }

@@ -179,12 +179,12 @@ class _ManageAdminsViewState extends ConsumerState<ManageAdminsView> {
               if (_formKey.currentState!.validate()) {
                 try {
                   await ref.read(authServiceProvider).registerWithEmail(
-                        _emailController.text,
-                        _passwordController.text,
-                        _displayNameController.text,
-                        phoneNumber: _phoneController.text,
-                        initialRole: _selectedRole,
-                      );
+                    _emailController.text,
+                    _passwordController.text,
+                    _displayNameController.text,
+                    phoneNumber: _phoneController.text,
+                    initialRole: _selectedRole,
+                  );
                   if (mounted) {
                     Navigator.of(context).pop();
                     ScaffoldMessenger.of(context).showSnackBar(
@@ -455,6 +455,15 @@ class _ManageAdminsViewState extends ConsumerState<ManageAdminsView> {
     }
   }
 
+  // 권한 체크 메서드 추가
+  bool _canManageAdmin(AdminUser currentUser) {
+    if (currentUser.role == AuthService.SUPER_ADMIN) return true;
+    if (currentUser.role == AuthService.ADMIN) {
+      return true;  // ADMIN은 MANAGER 추가 가능
+    }
+    return false;
+  }
+
   @override
   Widget build(BuildContext context) {
     final currentUser = ref.watch(authStateProvider).value;
@@ -610,16 +619,12 @@ class _ManageAdminsViewState extends ConsumerState<ManageAdminsView> {
         ],
       ),
       // FloatingActionButton 추가
-      floatingActionButton: isSuperAdmin
-          ? FloatingActionButton.extended(
-              onPressed: () => _showAddAdminDialog(),
-              icon: const Icon(Icons.person_add),
-              label: const Text('새 관리자 추가'),
-              backgroundColor: Theme.of(context).colorScheme.secondary,
-              foregroundColor: Colors.white,
-              elevation: 4,
-            )
-          : null,
+      floatingActionButton: currentUser != null && _canManageAdmin(currentUser) 
+        ? FloatingActionButton(
+            onPressed: _showAddAdminDialog,
+            child: const Icon(Icons.add),
+          )
+        : null,
       floatingActionButtonLocation: FloatingActionButtonLocation.endFloat,
     );
   }

@@ -50,7 +50,7 @@ class Product {
   /// 수정자 ID
   final String? updatedBy;
 
-  Product({
+  const Product({
     required this.id,
     required this.productCode,
     required this.name,
@@ -82,8 +82,8 @@ class Product {
       subCategory: map['subCategory'] ?? '',
       productImageUrl: map['productImageUrl'] ?? '',
       productDetailImage: map['productDetailImage'] ?? '',
-      stockQuantity: map['stockQuantity'] ?? 0,
-      isActive: map['isActive'] ?? true,
+      stockQuantity: (map['stockQuantity'] as num?)?.toInt() ?? 0,
+      isActive: map['isActive'] as bool? ?? true,
       createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
       updatedAt: (map['updatedAt'] as Timestamp?)?.toDate(),
       updatedBy: map['updatedBy'],
@@ -104,8 +104,8 @@ class Product {
       'productDetailImage': productDetailImage,
       'stockQuantity': stockQuantity,
       'isActive': isActive,
-      'createdAt': createdAt,
-      'updatedAt': updatedAt,
+      'createdAt': Timestamp.fromDate(createdAt),
+      'updatedAt': updatedAt != null ? Timestamp.fromDate(updatedAt!) : null,
       'updatedBy': updatedBy,
     };
   }

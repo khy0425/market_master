@@ -29,7 +29,7 @@ class CustomerMemo {
     required this.content,
     required this.adminId,
     required this.createdAt,
-    this.type = MemoType.normal,
+    required this.type,
     this.isPrivate = false,
   });
 
@@ -41,7 +41,7 @@ class CustomerMemo {
       adminId: map['adminId'] ?? '',
       createdAt: (map['createdAt'] as Timestamp).toDate(),
       type: MemoType.values.firstWhere(
-        (type) => type.name == map['type'],
+        (e) => e.name == (map['type'] ?? 'normal'),
         orElse: () => MemoType.normal,
       ),
       isPrivate: map['isPrivate'] ?? false,

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:market_master/views/product/product_list_view.dart';
+import '../../providers/providers.dart';
 
 import '../../models/product.dart';
 import '../../providers/auth_provider.dart';

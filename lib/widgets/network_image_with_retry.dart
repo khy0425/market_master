@@ -17,37 +17,33 @@ class NetworkImageWithRetry extends StatelessWidget {
     this.fit,
   }) : super(key: key);
 
+  static const int maxMemoryCacheSize = 100 * 1024 * 1024; // 100MB
+
   @override
   Widget build(BuildContext context) {
-    return Image.network(
-      imageUrl,
+    return CachedNetworkImage(
+      imageUrl: imageUrl,
+      memCacheWidth: 300,
+      memCacheHeight: 300,
+      maxWidthDiskCache: 600,
+      maxHeightDiskCache: 600,
       width: width,
       height: height,
       fit: fit ?? BoxFit.cover,
-      loadingBuilder: (context, child, loadingProgress) { 
-        if (loadingProgress == null) return child;
-        return Center(
-          child: CircularProgressIndicator(
-            value: loadingProgress.expectedTotalBytes != null
-                ? loadingProgress.cumulativeBytesLoaded / 
-                  loadingProgress.expectedTotalBytes!
-                : null,
+      placeholder: (context, url) => const Center(
+        child: CircularProgressIndicator(),
+      ),
+      errorWidget: (context, url, error) => Container(
+        width: width,
+        height: height,
+        color: Colors.grey[300],
+        child: const Center(
+          child: Icon(
+            Icons.error_outline,
+            color: Colors.grey,
           ),
-        );
-      },
-      errorBuilder: (context, error, stackTrace) {
-        return Container(
-          width: width,
-          height: height,
-          color: Colors.grey[300],
-          child: const Center(
-            child: Icon(
-              Icons.error_outline,
-              color: Colors.grey,
-            ),
-          ),
-        );
-      },
+        ),
+      ),
     );
   }
 } 

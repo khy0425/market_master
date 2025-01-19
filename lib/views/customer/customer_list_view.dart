@@ -16,16 +16,15 @@ class CustomerListView extends ConsumerStatefulWidget {
 }
 
 class _CustomerListViewState extends ConsumerState<CustomerListView> {
-  final Map<String, Widget> _customerItemCache = {};
   final _searchController = TextEditingController();
   int _currentPage = 0;
   int _totalPages = 1;
   bool _isLoading = false;
-  
+
   // 필터링 상태
   String _selectedTier = '전체';  // VVIP, VIP, GOLD, BASIC
   int _minAmount = 0;  // 최소 구매액
-  
+
   // 정렬 상태
   String _sortBy = '최근구매순';  // 구매액순, 구매횟수순
   String _customerType = '전체';  // 전체, 단골고객, 진상고객 추가
@@ -97,14 +96,14 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
                         Expanded(
                           child: Wrap(
                             spacing: 8,
-                            children: ['전체', 'VVIP', 'VIP', 'GOLD', 'BASIC'].map((tier) => 
-                              ChoiceChip(
-                                label: Text(tier),
-                                selected: _selectedTier == tier,
-                                onSelected: (selected) {
-                                  setState(() => _selectedTier = selected ? tier : '전체');
-                                },
-                              ),
+                            children: ['전체', 'VVIP', 'VIP', 'GOLD', 'BASIC'].map((tier) =>
+                                ChoiceChip(
+                                  label: Text(tier),
+                                  selected: _selectedTier == tier,
+                                  onSelected: (selected) {
+                                    setState(() => _selectedTier = selected ? tier : '전체');
+                                  },
+                                ),
                             ).toList(),
                           ),
                         ),
@@ -119,28 +118,28 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
                         Expanded(
                           child: Wrap(
                             spacing: 8,
-                            children: ['전체', '단골고객', '진상고객', '일반고객'].map((type) => 
-                              ChoiceChip(
-                                label: Row(
-                                  mainAxisSize: MainAxisSize.min,
-                                  children: [
-                                    Icon(
-                                      type == '단골고객' ? Icons.favorite :
-                                      type == '진상고객' ? Icons.warning :
-                                      type == '일반고객' ? Icons.person_outline :
-                                      Icons.person,
-                                      size: 16,
-                                      color: type == _customerType ? Colors.white : null,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(type),
-                                  ],
+                            children: ['전체', '단골고객', '진상고객', '일반고객'].map((type) =>
+                                ChoiceChip(
+                                  label: Row(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        type == '단골고객' ? Icons.favorite :
+                                        type == '진상고객' ? Icons.warning :
+                                        type == '일반고객' ? Icons.person_outline :
+                                        Icons.person,
+                                        size: 16,
+                                        color: type == _customerType ? Colors.white : null,
+                                      ),
+                                      const SizedBox(width: 4),
+                                      Text(type),
+                                    ],
+                                  ),
+                                  selected: _customerType == type,
+                                  onSelected: (selected) {
+                                    setState(() => _customerType = selected ? type : '전체');
+                                  },
                                 ),
-                                selected: _customerType == type,
-                                onSelected: (selected) {
-                                  setState(() => _customerType = selected ? type : '전체');
-                                },
-                              ),
                             ).toList(),
                           ),
                         ),
@@ -155,16 +154,16 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
                         Expanded(
                           child: Wrap(
                             spacing: 8,
-                            children: [0, 50000, 100000, 500000, 1000000].map((amount) => 
-                              ChoiceChip(
-                                label: Text(amount == 0 
-                                    ? '제한 없음' 
-                                    : CustomerUtils.formatAmount(amount)),
-                                selected: _minAmount == amount,
-                                onSelected: (selected) {
-                                  setState(() => _minAmount = selected ? amount : 0);
-                                },
-                              ),
+                            children: [0, 50000, 100000, 500000, 1000000].map((amount) =>
+                                ChoiceChip(
+                                  label: Text(amount == 0
+                                      ? '제한 없음'
+                                      : CustomerUtils.formatAmount(amount)),
+                                  selected: _minAmount == amount,
+                                  onSelected: (selected) {
+                                    setState(() => _minAmount = selected ? amount : 0);
+                                  },
+                                ),
                             ).toList(),
                           ),
                         ),
@@ -179,14 +178,14 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
                         Expanded(
                           child: Wrap(
                             spacing: 8,
-                            children: ['최근구매순', '구매액순', '구매횟수순'].map((sort) => 
-                              ChoiceChip(
-                                label: Text(sort),
-                                selected: _sortBy == sort,
-                                onSelected: (selected) {
-                                  setState(() => _sortBy = selected ? sort : '최근구매순');
-                                },
-                              ),
+                            children: ['최근구매순', '구매액순', '구매횟수순'].map((sort) =>
+                                ChoiceChip(
+                                  label: Text(sort),
+                                  selected: _sortBy == sort,
+                                  onSelected: (selected) {
+                                    setState(() => _sortBy = selected ? sort : '최근구매순');
+                                  },
+                                ),
                             ).toList(),
                           ),
                         ),
@@ -207,12 +206,12 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
                   prefixIcon: const Icon(Icons.search),
                   suffixIcon: _searchController.text.isNotEmpty
                       ? IconButton(
-                          icon: const Icon(Icons.clear),
-                          onPressed: () {
-                            _searchController.clear();
-                            setState(() {});
-                          },
-                        )
+                    icon: const Icon(Icons.clear),
+                    onPressed: () {
+                      _searchController.clear();
+                      setState(() {});
+                    },
+                  )
                       : null,
                   border: const OutlineInputBorder(),
                 ),
@@ -255,20 +254,20 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
                   }
 
                   var customers = snapshot.data!;
-                  
+
                   // 필터링 적용
                   if (_selectedTier != '전체') {
-                    customers = customers.where((c) => 
-                      CustomerUtils.getCustomerTier(c, settings)['tier'] == _selectedTier
+                    customers = customers.where((c) =>
+                    CustomerUtils.getCustomerTier(c, settings)['tier'] == _selectedTier
                     ).toList();
                   }
-                  
+
                   if (_minAmount > 0) {
-                    customers = customers.where((c) => 
-                      CustomerUtils.calculateTotalOrderAmount(c) >= _minAmount
+                    customers = customers.where((c) =>
+                    CustomerUtils.calculateTotalOrderAmount(c) >= _minAmount
                     ).toList();
                   }
-                  
+
                   // 고객 유형 필터링을 FutureBuilder로 분리
                   if (_customerType != '전체') {
                     return FutureBuilder<List<Customer>>(
@@ -286,11 +285,11 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
                         if (asyncSnapshot.connectionState == ConnectionState.waiting) {
                           return const Center(child: CircularProgressIndicator());
                         }
-                        
+
                         if (asyncSnapshot.hasError) {
                           return Center(child: Text('에러가 발생했습니다: ${asyncSnapshot.error}'));
                         }
-                        
+
                         return _buildCustomerListView(asyncSnapshot.data ?? [], settings);
                       },
                     );
@@ -309,19 +308,15 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
   }
 
   Widget _buildCustomerTile(Customer customer) {
-    if (_customerItemCache.containsKey(customer.uid)) {
-      return _customerItemCache[customer.uid]!;
-    }
-
     final settingsAsyncValue = ref.watch(tierSettingsProvider);
-    
-    final widget = settingsAsyncValue.when(
+
+    return settingsAsyncValue.when(
       data: (settings) {
         final lastOrderDate = CustomerUtils.getLastOrderDate(customer);
         final totalAmount = CustomerUtils.calculateTotalOrderAmount(customer);
         final tierInfo = CustomerUtils.getCustomerTier(customer, settings);
-        
-        final tile = Card(
+
+        return Card(
           margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: ListTile(
             leading: CircleAvatar(
@@ -338,8 +333,8 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
               children: [
                 Expanded(
                   child: Text(
-                    customer.productOrders.isNotEmpty 
-                        ? customer.productOrders.last.buyerName 
+                    customer.productOrders.isNotEmpty
+                        ? customer.productOrders.last.buyerName
                         : "미구매",
                   ),
                 ),
@@ -380,27 +375,22 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
             onTap: () => _showCustomerDetail(customer),
           ),
         );
-
-        _customerItemCache[customer.uid] = tile;
-        return tile;
       },
       loading: () => const Center(child: CircularProgressIndicator()),
       error: (error, stack) => Center(child: Text('오류 발생: $error')),
     );
-
-    return widget;
   }
 
   // VIP 등급 설정 다이얼로그
   void _showTierSettingsDialog(TierSettings settings) {
     final vvipController = TextEditingController(
-      text: (settings.vvipThreshold / 10000).round().toString()
+        text: (settings.vvipThreshold / 10000).round().toString()
     );
     final vipController = TextEditingController(
-      text: (settings.vipThreshold / 10000).round().toString()
+        text: (settings.vipThreshold / 10000).round().toString()
     );
     final goldController = TextEditingController(
-      text: (settings.goldThreshold / 10000).round().toString()
+        text: (settings.goldThreshold / 10000).round().toString()
     );
 
     showDialog(
@@ -484,14 +474,14 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
     // 정렬 적용
     switch (_sortBy) {
       case '구매액순':
-        customers.sort((a, b) => 
-          CustomerUtils.calculateTotalOrderAmount(b)
-          .compareTo(CustomerUtils.calculateTotalOrderAmount(a))
+        customers.sort((a, b) =>
+            CustomerUtils.calculateTotalOrderAmount(b)
+                .compareTo(CustomerUtils.calculateTotalOrderAmount(a))
         );
         break;
       case '구매횟수순':
-        customers.sort((a, b) => 
-          b.productOrders.length.compareTo(a.productOrders.length)
+        customers.sort((a, b) =>
+            b.productOrders.length.compareTo(a.productOrders.length)
         );
         break;
       case '최근구매순':
@@ -509,10 +499,11 @@ class _CustomerListViewState extends ConsumerState<CustomerListView> {
     }
 
     return ListView.builder(
-      addAutomaticKeepAlives: false,
-      addRepaintBoundaries: true,
       itemCount: customers.length,
-      itemBuilder: (context, index) => _buildCustomerTile(customers[index]),
+      itemBuilder: (context, index) {
+        final customer = customers[index];
+        return _buildCustomerTile(customer);
+      },
     );
   }
 

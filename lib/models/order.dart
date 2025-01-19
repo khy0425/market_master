@@ -1,23 +1,80 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:flutter/material.dart';
 
 /// 주문 상태를 나타내는 열거형
 enum OrderStatus {
-  pending('주문접수', 'pending'),
-  confirmed('주문확인', 'confirmed'),
-  preparing('상품준비중', 'preparing'),
-  shipping('배송중', 'shipping'),
-  delivered('배송완료', 'delivered'),
-  cancelled('취소/반품', 'cancelled');
+  pending('주문접수', 'pending', true),
+  confirmed('주문확인', 'confirmed', true),
+  preparing('상품준비중', 'preparing', false),
+  shipping('배송중', 'shipping', false),
+  delivered('배송완료', 'delivered', false),
+  cancelled('취소/반품', 'cancelled', false);
 
   final String text;
   final String code;
-  const OrderStatus(this.text, this.code);
+  final bool isWaiting;  // 처리 대기 상태 여부
+  const OrderStatus(this.text, this.code, this.isWaiting);
+
+  String get label => text;  // 새로운 UI용 getter
 
   static OrderStatus fromString(String status) {
-    return OrderStatus.values.firstWhere(
-      (s) => s.text == status || s.code == status,
-      orElse: () => OrderStatus.pending,
-    );
+    print('[OrderStatus] 상태 변환: $status');  // 로그 추가
+    
+    // 상태값 정규화
+    final normalized = status.toLowerCase().trim();
+    
+    // 매핑 테이블
+    final Map<String, OrderStatus> statusMap = {
+      'pending': OrderStatus.pending,
+      'confirmed': OrderStatus.confirmed,
+      'preparing': OrderStatus.preparing,
+      '상품준비중': OrderStatus.preparing,
+      'shipping': OrderStatus.shipping,
+      '배송중': OrderStatus.shipping,
+      'delivered': OrderStatus.delivered,
+      '배송완료': OrderStatus.delivered,
+      'cancelled': OrderStatus.cancelled,
+      '취소/반품': OrderStatus.cancelled,
+      'waiting': OrderStatus.pending,  // waiting을 pending으로 매핑
+    };
+
+    final result = statusMap[normalized] ?? OrderStatus.pending;
+    print('[OrderStatus] 변환 결과: ${result.text} (isWaiting: ${result.isWaiting})');  // 로그 추가
+    return result;
+  }
+
+  // UI 색상 관련
+  Color get color {
+    switch (this) {
+      case OrderStatus.pending:
+      case OrderStatus.confirmed:
+        return Colors.red;
+      case OrderStatus.preparing:
+        return Colors.orange;
+      case OrderStatus.shipping:
+        return Colors.blue;
+      case OrderStatus.delivered:
+        return Colors.green;
+      case OrderStatus.cancelled:
+        return Colors.grey;
+    }
+  }
+
+  // UI 아이콘 관련
+  IconData get icon {
+    switch (this) {
+      case OrderStatus.pending:
+      case OrderStatus.confirmed:
+        return Icons.notification_important;
+      case OrderStatus.preparing:
+        return Icons.inventory;
+      case OrderStatus.shipping:
+        return Icons.local_shipping;
+      case OrderStatus.delivered:
+        return Icons.check_circle;
+      case OrderStatus.cancelled:
+        return Icons.cancel;
+    }
   }
 }
 
@@ -153,8 +210,9 @@ class OrderHistory {
 
 /// 주문 정보를 나타내는 클래스
 class ProductOrder {
+  final String id;
   final String orderNo;
-  final DateTime orderDate;
+  final DateTime? orderDate;
   final String buyerName;
   final String buyerEmail;
   final String buyerPhone;
@@ -175,6 +233,7 @@ class ProductOrder {
   final String receiverZip;
   final String userId;
   final String? trackingNumber;
+  final bool isActive;
 
   // 편의를 위한 getter 메서드들
   String get shippingAddress => '$receiverAddress1 $receiverAddress2';
@@ -207,9 +266,10 @@ class ProductOrder {
     ),
   );
 
-  ProductOrder({
+  const ProductOrder({
+    required this.id,
     required this.orderNo,
-    required this.orderDate,
+    this.orderDate,
     required this.buyerName,
     required this.buyerEmail,
     required this.buyerPhone,
@@ -230,12 +290,31 @@ class ProductOrder {
     required this.receiverZip,
     required this.userId,
     this.trackingNumber,
+    this.isActive = true,
   });
 
-  factory ProductOrder.fromMap(Map<String, dynamic> map) {
+  factory ProductOrder.fromMap(String id, Map<String, dynamic> map) {
+    DateTime? parseDate(dynamic value) {
+      try {
+        if (value == null) return null;
+        if (value is DateTime) return value;
+        if (value is String) {
+          if (value.contains('.')) {
+            value = value.split('.')[0];
+          }
+          return DateTime.parse(value);
+        }
+        return null;
+      } catch (e) {
+        print('날짜 파싱 실패: $value - $e');
+        return null;
+      }
+    }
+
     return ProductOrder(
+      id: id,
       orderNo: map['orderNo'] ?? '',
-      orderDate: DateTime.parse(map['orderDate'].toString().split('.')[0]),
+      orderDate: parseDate(map['orderDate']),
       buyerName: map['buyerName'] ?? '',
       buyerEmail: map['buyerEmail'] ?? '',
       buyerPhone: map['buyerPhone'] ?? '',
@@ -258,7 +337,36 @@ class ProductOrder {
       receiverZip: map['receiverZip'] ?? '',
       userId: map['userId'] ?? '',
       trackingNumber: map['trackingNumber'],
+      isActive: map['isActive'] ?? true,
     );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'orderNo': orderNo,
+      'orderDate': orderDate?.toIso8601String(),
+      'buyerName': buyerName,
+      'buyerEmail': buyerEmail,
+      'buyerPhone': buyerPhone,
+      'deliveryStatus': deliveryStatus,
+      'deliveryFee': deliveryFee,
+      'deliveryRequest': deliveryRequest,
+      'paymentAmount': totalAmount,
+      'paymentMethod': paymentMethod,
+      'couponUsed': couponUsed,
+      'productNo': productNo,
+      'productNames': productNames,
+      'quantity': quantity,
+      'unitPrice': unitPrice,
+      'receiverName': receiverName,
+      'receiverPhone': receiverPhone,
+      'receiverAddress1': receiverAddress1,
+      'receiverAddress2': receiverAddress2,
+      'receiverZip': receiverZip,
+      'userId': userId,
+      'trackingNumber': trackingNumber,
+      'isActive': isActive,
+    };
   }
 }
 
@@ -389,5 +497,53 @@ class OrderData {
       receiverZip: map['receiverZip'] ?? '',
       userId: map['userId'] ?? '',
     );
+  }
+}
+
+class ShopOrder {
+  final String? orderId;
+  final String? orderDate;
+  final String? buyerName;
+  final String? buyerEmail;
+  final String? buyerPhone;
+  final String? deliveryStatus;
+  final int paymentAmount;
+  final bool isActive;
+
+  const ShopOrder({
+    this.orderId,
+    this.orderDate,
+    this.buyerName,
+    this.buyerEmail,
+    this.buyerPhone,
+    this.deliveryStatus,
+    required this.paymentAmount,
+    this.isActive = true,
+  });
+
+  factory ShopOrder.fromMap(Map<String, dynamic> map) {
+    return ShopOrder(
+      orderId: map['orderId'] as String?,
+      orderDate: map['orderDate'] as String?,
+      buyerName: map['buyerName'] as String?,
+      buyerEmail: map['buyerEmail'] as String?,
+      buyerPhone: map['buyerPhone'] as String?,
+      deliveryStatus: map['deliveryStatus'] as String?,
+      paymentAmount: (map['paymentAmount'] as num?)?.toInt() ?? 0,
+      isActive: map['isActive'] as bool? ?? true,
+    );
+  }
+
+  Map<String, dynamic> toMap() {
+    return {
+      'orderId': orderId,
+      'orderDate': orderDate,
+      'buyerName': buyerName,
+      'buyerEmail': buyerEmail,
+      'buyerPhone': buyerPhone,
+      'deliveryStatus': deliveryStatus,
+      'paymentAmount': paymentAmount,
+      'isActive': isActive,
+    };
   }
 } 

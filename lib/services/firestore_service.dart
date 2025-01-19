@@ -1,52 +1,81 @@
 import 'package:cloud_firestore/cloud_firestore.dart';
-import '../models/product.dart';
 
 class FirestoreService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
 
-  // 제품 관련 메서드
-  Future<List<Product>> getProducts() async {
-    try {
-      QuerySnapshot snapshot = await _firestore.collection('products').get();
-      return snapshot.docs.map((doc) => 
-        Product.fromMap(doc.id, doc.data() as Map<String, dynamic>)
-      ).toList();
-    } catch (e) {
-      print('제품 목록 조회 오류: $e');
-      return [];
-    }
+  // 문서 목록 조회
+  Stream<List<T>> getCollection<T>({
+    required String path,
+    required T Function(String id, Map<String, dynamic> data) builder,
+  }) {
+    return _db.collection(path).snapshots().map((snapshot) {
+      return snapshot.docs.map((doc) {
+        return builder(doc.id, doc.data());
+      }).toList();
+    });
   }
 
-  Future<void> updateProduct(String productId, Map<String, dynamic> data) async {
-    try {
-      await _firestore.collection('products').doc(productId).update(data);
-    } catch (e) {
-      print('제품 업데이트 오류: $e');
-      throw e;
-    }
+  // 문서 검색
+  Stream<List<T>> searchCollection<T>({
+    required String path,
+    required String field,
+    required String query,
+    required T Function(String id, Map<String, dynamic> data) builder,
+  }) {
+    return _db
+        .collection(path)
+        .where(field, isGreaterThanOrEqualTo: query)
+        .where(field, isLessThan: '${query}z')
+        .snapshots()
+        .map((snapshot) {
+          return snapshot.docs.map((doc) {
+            return builder(doc.id, doc.data());
+          }).toList();
+        });
   }
 
-  // 주문 관련 메서드
-  Future<List<Map<String, dynamic>>> getAllOrders() async {
-    try {
-      QuerySnapshot userSnapshot = await _firestore.collection('users').get();
-      List<Map<String, dynamic>> allOrders = [];
-      
-      for (var doc in userSnapshot.docs) {
-        var userData = doc.data() as Map<String, dynamic>;
-        if (userData['productOrders'] != null) {
-          List orders = userData['productOrders'] as List;
-          for (var order in orders) {
-            order['userId'] = doc.id;
-            allOrders.add(Map<String, dynamic>.from(order));
-          }
-        }
-      }
-      
-      return allOrders;
-    } catch (e) {
-      print('주문 목록 조회 오류: $e');
-      return [];
-    }
+  // 단일 문서 조회
+  Future<T?> getDocument<T>({
+    required String path,
+    required String id,
+    required T Function(String id, Map<String, dynamic> data) builder,
+  }) async {
+    final doc = await _db.doc('$path/$id').get();
+    if (!doc.exists || doc.data() == null) return null;
+    return builder(doc.id, doc.data()!);
+  }
+
+  // 문서 업데이트
+  Future<void> updateDocument({
+    required String path,
+    required String id,
+    required Map<String, dynamic> data,
+  }) async {
+    await _db.doc('$path/$id').update(data);
+  }
+
+  // 문서 삭제
+  Future<void> deleteDocument({
+    required String path,
+    required String id,
+  }) async {
+    await _db.doc('$path/$id').delete();
+  }
+
+  // 문서 추가
+  Future<DocumentReference> addDocument({
+    required String path,
+    required Map<String, dynamic> data,
+  }) async {
+    return await _db.collection(path).add(data);
+  }
+
+  // 문서 추가 (ID 지정)
+  Future<void> setDocument({
+    required String path,
+    required String id,
+    required Map<String, dynamic> data,
+  }) async {
+    await _db.doc('$path/$id').set(data);
   }
 } 

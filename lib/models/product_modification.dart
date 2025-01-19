@@ -3,30 +3,33 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 class ProductModification {
   final String id;
   final String productId;
-  final String modifiedBy;  // 수정한 관리자 이메일
+  final String modifiedBy;
   final DateTime modifiedAt;
-  final String modificationType;  // 수정 유형 (가격변경, 재고변경, 정보수정 등)
-  final Map<String, dynamic> changes;  // 변경된 필드와 값
-  final String? comment;  // 수정 사유나 코멘트
+  final String field;
+  final dynamic oldValue;
+  final dynamic newValue;
+  final String? comment;
 
-  ProductModification({
+  const ProductModification({
     required this.id,
     required this.productId,
     required this.modifiedBy,
     required this.modifiedAt,
-    required this.modificationType,
-    required this.changes,
+    required this.field,
+    required this.oldValue,
+    required this.newValue,
     this.comment,
   });
 
   factory ProductModification.fromMap(String id, Map<String, dynamic> map) {
     return ProductModification(
       id: id,
-      productId: map['productId'],
-      modifiedBy: map['modifiedBy'],
+      productId: map['productId'] ?? '',
+      modifiedBy: map['modifiedBy'] ?? '',
       modifiedAt: (map['modifiedAt'] as Timestamp).toDate(),
-      modificationType: map['modificationType'],
-      changes: map['changes'],
+      field: map['field'] ?? '',
+      oldValue: map['oldValue'],
+      newValue: map['newValue'],
       comment: map['comment'],
     );
   }
@@ -36,8 +39,9 @@ class ProductModification {
       'productId': productId,
       'modifiedBy': modifiedBy,
       'modifiedAt': Timestamp.fromDate(modifiedAt),
-      'modificationType': modificationType,
-      'changes': changes,
+      'field': field,
+      'oldValue': oldValue,
+      'newValue': newValue,
       'comment': comment,
     };
   }

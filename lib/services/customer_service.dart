@@ -3,151 +3,99 @@ import '../models/customer.dart';
 import 'dart:developer' as developer;
 
 class CustomerService {
-  final FirebaseFirestore _firestore = FirebaseFirestore.instance;
-  static const int pageSize = 100;  // 페이지당 고객 수
-
-  // 마지막으로 가져온 문서를 저장
-  DocumentSnapshot? _lastDocument;
-  DateTime? _lastOrderDate;  // 마지막 주문 날짜 추가
-
-  // 페이지네이션 최적화
-  Stream<List<Customer>> getCustomersByPage(int page) {
-    if (page == 0) {
-      _lastDocument = null;
-      _lastOrderDate = null;
-    }
-
-    var query = _firestore
-        .collection('users')
-        .orderBy('lastOrderDate', descending: true)
-        .limit(pageSize);
-
-    if (_lastDocument != null) {
-      query = query.startAfterDocument(_lastDocument!);
-    }
-
-    return query.snapshots().map((snapshot) {
-      if (snapshot.docs.isNotEmpty) {
-        _lastDocument = snapshot.docs.last;
-        _lastOrderDate = (snapshot.docs.last.data()['lastOrderDate'] as Timestamp?)?.toDate();
-      }
-      return snapshot.docs.map((doc) => Customer.fromMap({
-        ...doc.data(),
-        'uid': doc.id,
-      })).toList();
-    });
-  }
+  final FirebaseFirestore _db = FirebaseFirestore.instance;
+  static const int pageSize = 100;
 
   // 전체 고객 목록 조회
   Stream<List<Customer>> getCustomers() {
-    return _firestore
-        .collection('users')
-        .snapshots()
-        .map((snapshot) => snapshot.docs.map((doc) {
-              final data = doc.data();
-              return Customer.fromMap({
-                ...data,
-                'uid': doc.id,
-                'isRegular': data['isRegular'] ?? false,
-                'isTroubled': data['isTroubled'] ?? false,
-              });
-            }).toList());
+    print('[CustomerService] getCustomers 호출');
+    
+    return _db.collection('customers').snapshots().map((snapshot) {
+      print('[CustomerService] Firestore 데이터 수신: ${snapshot.docs.length}건');
+      
+      // 고객 ID 기준으로 중복 제거
+      final uniqueCustomers = <String, Customer>{};
+      
+      for (var doc in snapshot.docs) {
+        try {
+          final customer = Customer.fromMap(doc.id, doc.data());
+          if (!uniqueCustomers.containsKey(customer.id)) {
+            uniqueCustomers[customer.id] = customer;
+          }
+        } catch (e) {
+          print('[CustomerService] 고객 데이터 변환 실패: ${doc.id} - $e');
+        }
+      }
+      
+      final customers = uniqueCustomers.values.toList();
+      print('[CustomerService] 중복 제거 후 고객 수: ${customers.length}건');
+      return customers;
+    });
   }
 
-  // 페이지 초기화
-  void resetPagination() {
-    _lastDocument = null;
+  // 단일 고객 조회
+  Stream<Customer?> getCustomer(String id) {
+    print('getCustomer 호출 - ID: $id'); // 디버그 로그 추가
+    return _db
+        .collection('users')
+        .doc(id)
+        .snapshots()
+        .map((doc) {
+          print('Firestore 문서 데이터: ${doc.data()}'); // 데이터 로깅
+          return doc.exists 
+              ? Customer.fromMap(doc.id, doc.data() ?? {}) 
+              : null;
+        });
+  }
+
+  // 고객 검색
+  Stream<List<Customer>> searchCustomers(String query) {
+    if (query.isEmpty) return getCustomers();
+
+    return _db
+        .collection('users')
+        .where('email', isGreaterThanOrEqualTo: query)
+        .where('email', isLessThan: '${query}z')
+        .snapshots()
+        .map((snapshot) => snapshot.docs
+            .map((doc) => Customer.fromMap(doc.id, doc.data()))
+            .toList());
+  }
+
+  // 고객 정보 업데이트
+  Future<void> updateCustomer(Customer customer) {
+    return _db
+        .collection('users')
+        .doc(customer.id)
+        .update(customer.toMap());
   }
 
   // 전체 고객 수 조회
   Future<int> getTotalCustomers() async {
-    final snapshot = await _firestore.collection('users').count().get();
-    return snapshot.count ?? 0;  // null 처리 추가
-  }
-
-  // 캐시 추가
-  final _customerCache = <String, Customer>{};
-  
-  Future<Customer?> getCustomer(String uid) async {
-    // 캐시 확인
-    if (_customerCache.containsKey(uid)) {
-      return _customerCache[uid];
-    }
-
-    try {
-      final doc = await _firestore.collection('users').doc(uid).get();
-      if (!doc.exists) return null;
-      
-      final customer = Customer.fromMap({
-        ...doc.data()!,
-        'uid': doc.id,
-      });
-      
-      // 캐시 저장
-      _customerCache[uid] = customer;
-      return customer;
-    } catch (e) {
-      developer.log('Error getting customer', error: e, name: 'CustomerService');
-      return null;
-    }
-  }
-
-  // 고객 검색 (주문 이메일 기준)
-  Stream<List<Customer>> searchCustomers(String query) {
-    query = query.toLowerCase().trim();
-    return getCustomers().map((customers) => customers
-        .where((customer) => customer.productOrders.any(
-            (order) => order.buyerEmail.toLowerCase().contains(query)))
-        .toList());
-  }
-
-  // 고객 통계
-  Future<Map<String, dynamic>> getCustomerStats() async {
-    try {
-      final snapshot = await _firestore.collection('users').get();
-      final now = DateTime.now();
-      
-      int totalCustomers = snapshot.docs.length;
-      int activeCustomers = 0;  // 주문이 있는 고객 수
-      int totalOrders = 0;      // 전체 주문 수
-      int totalRevenue = 0;     // 전체 매출액
-
-      for (var doc in snapshot.docs) {
-        final data = doc.data() as Map<String, dynamic>;
-        final customer = Customer.fromMap({
-          'uid': doc.id,
-          ...data,
-        });
-        
-        if (customer.productOrders.isNotEmpty) {
-          activeCustomers++;
-          totalOrders += customer.productOrders.length;
-          totalRevenue += customer.productOrders
-              .map((order) => order.paymentAmount)
-              .fold(0, (a, b) => a + b);
-        }
-      }
-
-      return {
-        'totalCustomers': totalCustomers,
-        'activeCustomers': activeCustomers,
-        'totalOrders': totalOrders,
-        'totalRevenue': totalRevenue,
-        'averageOrderValue': totalOrders > 0 
-            ? (totalRevenue / totalOrders).round() 
-            : 0,
-      };
-    } catch (e) {
-      developer.log('Error getting customer stats', error: e, name: 'CustomerService');
-      rethrow;
-    }
-  }
-
-  // 고객 정보 업데이트
-  Future<void> updateCustomer(Customer customer) async {
-    await _firestore
+    final snapshot = await _db
         .collection('users')
-        .doc(customer.uid)
-        .update(customer.toMap());
+        .count()
+        .get();
+    return snapshot.count ?? 0;
+  }
+
+  // 고객 삭제
+  Future<void> deleteCustomer(String customerId) {
+    return _db.collection('users').doc(customerId).delete();
+  }
+
+  // 페이지네이션 초기화 추가
+  void resetPagination() {
+    // 페이지네이션 관련 상태 초기화
+  }
+
+  // 페이지별 고객 목록 조회
+  Stream<List<Customer>> getCustomersByPage(int page) {
+    return getCustomers().map((customers) {
+      final start = page * pageSize;
+      final end = start + pageSize;
+      if (start >= customers.length) return [];
+      return customers.sublist(start, end > customers.length ? customers.length : end);
+    });
   }
 }

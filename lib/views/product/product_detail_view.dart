@@ -105,48 +105,13 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                       return const Center(child: CircularProgressIndicator());
                     }
 
-                    final modifications = snapshot.data!;
-                    if (modifications.isEmpty) {
-                      return const Text('수정 이력이 없습니다.');
-                    }
-
-                    return ListView.builder(
-                      shrinkWrap: true,
-                      physics: const NeverScrollableScrollPhysics(),
-                      itemCount: modifications.length,
-                      itemBuilder: (context, index) {
-                        final modification = modifications[index];
-                        return Card(
-                          child: ListTile(
-                            title: Text(modification.modificationType),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text('수정자: ${modification.modifiedBy}'),
-                                Text('수정일시: ${FormatUtils.formatDateTime(modification.modifiedAt)}'),
-                                if (modification.comment != null)
-                                  Text('코멘트: ${modification.comment}'),
-                                const SizedBox(height: 8),
-                                ...modification.changes.entries.map((entry) {
-                                  final fieldName = entry.key;
-                                  final change = entry.value;
-                                  return Text(
-                                    '$fieldName: ${change['old']} → ${change['new']}',
-                                    style: const TextStyle(fontSize: 12),
-                                  );
-                                }),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                    );
+                    return _buildModificationHistory(snapshot.data!);
                   },
                 ),
               ],
             ),
 
-            // 이미지 섹션 - 중앙 정렬 적용
+            // 이미지 섹션
             _buildSection(
               '상품 이미지',
               [
@@ -156,11 +121,17 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                     const Text('대표 이미지', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     Center(
-                      child: SizedBox(
-                        width: 400,  // 이미지 최대 너비 지정
-                        child: AspectRatio(
-                          aspectRatio: 1,  // 1:1 비율 유지
-                          child: _buildImage(widget.product.productImageUrl),
+                      child: GestureDetector(
+                        onTap: () => _showFullScreenImage(context, widget.product.productImageUrl),
+                        child: Hero(
+                          tag: 'product_image_${widget.product.id}',
+                          child: SizedBox(
+                            width: 400,  // 대표 이미지는 적당한 크기로
+                            child: AspectRatio(
+                              aspectRatio: 1,
+                              child: _buildImage(widget.product.productImageUrl),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -171,9 +142,15 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
                     const Text('상세 이미지', style: TextStyle(fontWeight: FontWeight.bold)),
                     const SizedBox(height: 16),
                     Center(
-                      child: SizedBox(
-                        width: 600,  // 상세 이미지는 더 크게 표시
-                        child: _buildImage(widget.product.productDetailImage),
+                      child: GestureDetector(
+                        onTap: () => _showFullScreenImage(context, widget.product.productDetailImage),
+                        child: Hero(
+                          tag: 'product_detail_image_${widget.product.id}',
+                          child: Container(
+                            constraints: const BoxConstraints(maxWidth: 1200),  // 최대 너비 제한
+                            child: _buildDetailImage(widget.product.productDetailImage),
+                          ),
+                        ),
                       ),
                     ),
                   ],
@@ -239,23 +216,33 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
 
   // 이미지 위젯 빌더 메서드 추가
   Widget _buildImage(String imageUrl) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(8),
-      child: imageUrl.isNotEmpty
-          ? NetworkImageWithRetry(
-              imageUrl: imageUrl,
-              fit: BoxFit.cover,
-            )
-          : Container(
-              color: Colors.grey[200],
-              child: const Center(
-                child: Icon(
-                  Icons.image_not_supported,
-                  size: 48,
-                  color: Colors.grey,
-                ),
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.contain,
+          errorBuilder: (context, error, stackTrace) {
+            print('이미지 로드 에러: $error');
+            return const Center(child: Icon(Icons.error));
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / 
+                      loadingProgress.expectedTotalBytes!
+                    : null,
               ),
-            ),
+            );
+          },
+        ),
+      ),
     );
   }
 
@@ -324,5 +311,126 @@ class _ProductDetailViewState extends ConsumerState<ProductDetailView> {
         }
       }
     }
+  }
+
+  // 수정 이력 표시 위젯
+  Widget _buildModificationHistory(List<ProductModification> modifications) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text(
+          '수정 이력',
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        const SizedBox(height: 8),
+        if (modifications.isEmpty)
+          const Text('수정 이력이 없습니다')
+        else
+          ListView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: modifications.length,
+            itemBuilder: (context, index) {
+              final modification = modifications[index];
+              return Card(
+                child: ListTile(
+                  title: Text(
+                    '${modification.field} 변경',
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                  ),
+                  subtitle: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('수정일시: ${_formatDate(modification.modifiedAt)}'),
+                      Text('수정자: ${modification.modifiedBy}'),
+                      Text('이전 값: ${modification.oldValue}'),
+                      Text('변경 값: ${modification.newValue}'),
+                      if (modification.comment != null)
+                        Text('비고: ${modification.comment}'),
+                    ],
+                  ),
+                ),
+              );
+            },
+          ),
+      ],
+    );
+  }
+
+  String _formatDate(DateTime date) {
+    return '${date.year}-${date.month.toString().padLeft(2, '0')}-'
+           '${date.day.toString().padLeft(2, '0')} '
+           '${date.hour.toString().padLeft(2, '0')}:'
+           '${date.minute.toString().padLeft(2, '0')}';
+  }
+
+  // 전체화면 이미지 표시 메서드 추가
+  void _showFullScreenImage(BuildContext context, String imageUrl) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => Scaffold(
+          backgroundColor: Colors.black87,
+          appBar: AppBar(
+            backgroundColor: Colors.transparent,
+            elevation: 0,
+            leading: IconButton(
+              icon: const Icon(Icons.close, color: Colors.white),
+              onPressed: () => Navigator.of(context).pop(),
+            ),
+          ),
+          body: Center(
+            child: InteractiveViewer(
+              minScale: 0.5,
+              maxScale: 4.0,
+              child: Hero(
+                tag: imageUrl,
+                child: Image.network(
+                  imageUrl,
+                  fit: BoxFit.contain,
+                  errorBuilder: (context, error, stackTrace) {
+                    return const Center(child: Icon(Icons.error, color: Colors.white));
+                  },
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  // 상세 이미지용 빌더 메서드 추가
+  Widget _buildDetailImage(String imageUrl) {
+    return Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: Colors.grey.shade300),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(8),
+        child: Image.network(
+          imageUrl,
+          fit: BoxFit.fitWidth,  // 너비에 맞추어 비율 유지
+          errorBuilder: (context, error, stackTrace) {
+            print('이미지 로드 에러: $error');
+            return const Center(child: Icon(Icons.error));
+          },
+          loadingBuilder: (context, child, loadingProgress) {
+            if (loadingProgress == null) return child;
+            return Center(
+              child: CircularProgressIndicator(
+                value: loadingProgress.expectedTotalBytes != null
+                    ? loadingProgress.cumulativeBytesLoaded / 
+                      loadingProgress.expectedTotalBytes!
+                    : null,
+              ),
+            );
+          },
+        ),
+      ),
+    );
   }
 } 
